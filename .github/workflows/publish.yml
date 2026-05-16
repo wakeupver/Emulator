@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: lemuroid-app/build/outputs/apk/freeDynamic/release/lemuroid-app-free-dynamic-release.apk
+          path: lemuroid-app/build/outputs/apk/freeDynamic/release/*.apk
 
   publish_apk:
     name: Publish APK on Github
