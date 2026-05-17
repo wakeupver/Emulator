@@ -73,6 +73,7 @@ class GameMenuActivity : RetrogradeComponentActivity() {
     data class GameMenuRequest(
         val coreOptions: List<LemuroidCoreOption>,
         val advancedCoreOptions: List<LemuroidCoreOption>,
+        val autoDetectedCoreOptions: List<LemuroidCoreOption>,
         val game: Game,
         val coreConfig: SystemCoreConfig,
         val audioEnabled: Boolean,
@@ -104,6 +105,10 @@ class GameMenuActivity : RetrogradeComponentActivity() {
                     intent.serializable<Array<LemuroidCoreOption>>(GameMenuContract.EXTRA_ADVANCED_CORE_OPTIONS)
                         ?.toList()
                         ?: throw InvalidParameterException("Missing EXTRA_ADVANCED_CORE_OPTIONS"),
+                autoDetectedCoreOptions =
+                    intent.serializable<Array<LemuroidCoreOption>>(GameMenuContract.EXTRA_AUTO_DETECTED_CORE_OPTIONS)
+                        ?.toList()
+                        ?: emptyList(),
                 game =
                     intent.serializable<Game>(GameMenuContract.EXTRA_GAME)
                         ?: throw InvalidParameterException("Missing EXTRA_GAME"),

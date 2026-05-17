@@ -35,6 +35,19 @@ object CoreOptionsPreferenceHelper {
         addPreferences(context, preferencesCategory, advancedOptions, systemID)
     }
 
+    fun addAutoDetectedPreferences(
+        preferenceScreen: PreferenceScreen,
+        systemID: String,
+        autoDetectedOptions: List<LemuroidCoreOption>,
+    ) {
+        if (autoDetectedOptions.isEmpty()) return
+
+        val context = preferenceScreen.context
+        val title = context.getString(R.string.core_settings_auto_detected)
+        val category = createCategory(context, preferenceScreen, title)
+        addPreferences(context, category, autoDetectedOptions, systemID)
+    }
+
     fun addControllers(
         preferenceScreen: PreferenceScreen,
         systemID: String,

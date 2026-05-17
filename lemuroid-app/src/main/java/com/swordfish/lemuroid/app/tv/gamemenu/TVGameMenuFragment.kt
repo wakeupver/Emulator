@@ -27,6 +27,7 @@ class TVGameMenuFragment(
     private val systemCoreConfig: SystemCoreConfig,
     private val coreOptions: Array<LemuroidCoreOption>,
     private val advancedCoreOptions: Array<LemuroidCoreOption>,
+    private val autoDetectedCoreOptions: Array<LemuroidCoreOption>,
     private val numDisks: Int,
     private val currentDisk: Int,
     private val audioEnabled: Boolean,
@@ -82,6 +83,12 @@ class TVGameMenuFragment(
             game.systemId,
             coreOptions.toList(),
             advancedCoreOptions.toList(),
+        )
+
+        CoreOptionsPreferenceHelper.addAutoDetectedPreferences(
+            coreOptionsScreen,
+            game.systemId,
+            autoDetectedCoreOptions.toList(),
         )
 
         CoreOptionsPreferenceHelper.addControllers(

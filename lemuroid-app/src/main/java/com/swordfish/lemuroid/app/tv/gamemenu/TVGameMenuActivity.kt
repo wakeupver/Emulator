@@ -48,6 +48,12 @@ class TVGameMenuActivity : TVBaseSettingsActivity() {
                 ) as Array<LemuroidCoreOption>?
                     ?: throw InvalidParameterException("Missing EXTRA_ADVANCED_CORE_OPTIONS")
 
+            val autoDetectedOptions =
+                intent.extras?.getSerializable(
+                    GameMenuContract.EXTRA_AUTO_DETECTED_CORE_OPTIONS,
+                ) as Array<LemuroidCoreOption>?
+                    ?: emptyArray()
+
             val numDisks =
                 intent.extras?.getInt(GameMenuContract.EXTRA_DISKS)
                     ?: throw InvalidParameterException("Missing EXTRA_DISKS")
@@ -77,6 +83,7 @@ class TVGameMenuActivity : TVBaseSettingsActivity() {
                     core,
                     options,
                     advancedOptions,
+                    autoDetectedOptions,
                     numDisks,
                     currentDisk,
                     audioEnabled,
@@ -101,6 +108,7 @@ class TVGameMenuActivity : TVBaseSettingsActivity() {
         private val systemCoreConfig: SystemCoreConfig,
         private val coreOptions: Array<LemuroidCoreOption>,
         private val advancedCoreOptions: Array<LemuroidCoreOption>,
+        private val autoDetectedCoreOptions: Array<LemuroidCoreOption>,
         private val numDisks: Int,
         private val currentDisk: Int,
         private val audioEnabled: Boolean,
@@ -116,6 +124,7 @@ class TVGameMenuActivity : TVBaseSettingsActivity() {
                 systemCoreConfig,
                 coreOptions,
                 advancedCoreOptions,
+                autoDetectedCoreOptions,
                 numDisks,
                 currentDisk,
                 audioEnabled,

@@ -35,11 +35,19 @@ class CoreVariablesManager(private val sharedPreferences: Lazy<SharedPreferences
             val exposedKeys = systemCoreConfig.exposedSettings
             val exposedAdvancedKeys = systemCoreConfig.exposedAdvancedSettings
 
-            val requestedKeys =
+            // Keys that were manually registered in GameSystem.kt
+            val registeredRequestedKeys =
                 (exposedKeys + exposedAdvancedKeys).map { it.key }
                     .map { computeSharedPreferenceKey(it, systemID.dbname) }
+                    .toSet()
 
-            sharedPreferences.get().all.filter { it.key in requestedKeys }
+            // The prefix used for all variables of this system
+            val prefix = computeSharedPreferencesPrefix(systemID.dbname)
+
+            // Include ALL keys saved under this system's prefix — both manually registered
+            // and auto-detected ones written by the in-game menu.
+            sharedPreferences.get().all
+                .filter { it.key.startsWith(prefix) }
                 .map { (key, value) ->
                     val result =
                         when (value!!) {
@@ -68,7 +76,7 @@ class CoreVariablesManager(private val sharedPreferences: Lazy<SharedPreferences
             return sharedPreferencesKey.replace(computeSharedPreferencesPrefix(systemID), "")
         }
 
-        private fun computeSharedPreferencesPrefix(systemID: String): String {
+        fun computeSharedPreferencesPrefix(systemID: String): String {
             return "${RETRO_OPTION_PREFIX}_${systemID}_"
         }
     }

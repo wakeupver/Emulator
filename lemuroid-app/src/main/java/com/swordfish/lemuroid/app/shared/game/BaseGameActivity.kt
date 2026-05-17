@@ -191,10 +191,22 @@ abstract class BaseGameActivity : ImmersiveActivity() {
             systemCoreConfig.exposedAdvancedSettings
                 .mapNotNull { transformExposedSetting(it, coreOptions) }
 
+        // Auto-detect: include all core variables NOT already listed in exposed/advanced settings
+        val knownKeys =
+            (systemCoreConfig.exposedSettings + systemCoreConfig.exposedAdvancedSettings)
+                .map { it.key }
+                .toSet()
+
+        val autoDetectedOptions =
+            coreOptions
+                .filter { it.variable.key !in knownKeys }
+                .map { LemuroidCoreOption.fromAutoDetected(it) }
+
         val intent =
             Intent(this, getDialogClass()).apply {
                 this.putExtra(GameMenuContract.EXTRA_CORE_OPTIONS, options.toTypedArray())
                 this.putExtra(GameMenuContract.EXTRA_ADVANCED_CORE_OPTIONS, advancedOptions.toTypedArray())
+                this.putExtra(GameMenuContract.EXTRA_AUTO_DETECTED_CORE_OPTIONS, autoDetectedOptions.toTypedArray())
                 this.putExtra(
                     GameMenuContract.EXTRA_CURRENT_DISK,
                     baseGameScreenViewModel.retroGameView.retroGameView?.getCurrentDisk() ?: 0,

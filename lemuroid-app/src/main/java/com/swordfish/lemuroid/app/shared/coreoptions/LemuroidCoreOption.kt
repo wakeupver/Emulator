@@ -13,7 +13,12 @@ data class LemuroidCoreOption(
     }
 
     fun getDisplayName(context: Context): String {
-        return context.getString(exposedSetting.titleId)
+        // Prefer string resource; fall back to rawTitle (auto-detected) or key
+        return when {
+            exposedSetting.titleId != 0 -> context.getString(exposedSetting.titleId)
+            exposedSetting.rawTitle.isNotBlank() -> exposedSetting.rawTitle
+            else -> coreOption.name.ifBlank { exposedSetting.key }
+        }
     }
 
     fun getEntries(context: Context): List<String> {
@@ -40,8 +45,25 @@ data class LemuroidCoreOption(
         return maxOf(getEntriesValues().indexOf(getCurrentValue()), 0)
     }
 
+    /** Whether this option was auto-detected from the core (not manually listed in GameSystem). */
+    fun isAutoDetected(): Boolean = exposedSetting.titleId == 0
+
     private fun getCorrectExposedSettings(): List<ExposedSetting.Value> {
         return exposedSetting.values
             .filter { it.key in coreOption.optionValues }
+    }
+
+    companion object {
+        /**
+         * Build a LemuroidCoreOption directly from a CoreOption, using the variable's
+         * description as the display name. Used for auto-detected core settings.
+         */
+        fun fromAutoDetected(coreOption: CoreOption): LemuroidCoreOption {
+            val exposedSetting = ExposedSetting.fromRawTitle(
+                key = coreOption.variable.key,
+                rawTitle = coreOption.name.trim(),
+            )
+            return LemuroidCoreOption(exposedSetting, coreOption)
+        }
     }
 }
