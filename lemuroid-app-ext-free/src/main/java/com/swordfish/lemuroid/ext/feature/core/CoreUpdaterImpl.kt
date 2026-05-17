@@ -126,7 +126,7 @@ class CoreUpdaterImpl(
             throw Exception("Download failed (${response.code()}): ${response.errorBody()?.string()}")
         }
 
-        withContext(Dispatchers.IO) {
+        withContext<Unit>(Dispatchers.IO) {
             response.body()?.byteStream()?.use { inputStream ->
                 ZipInputStream(inputStream).use { zip ->
                     var entry = zip.nextEntry
