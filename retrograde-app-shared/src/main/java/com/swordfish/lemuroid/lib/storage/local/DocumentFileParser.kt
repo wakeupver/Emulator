@@ -15,6 +15,9 @@ object DocumentFileParser {
     private const val SINGLE_ARCHIVE_THRESHOLD = 0.9
     private const val MAX_SIZE_CRC32 = 1_000_000_000
 
+    /** Extensions that may embed a disc serial — only these need the expensive serial scan. */
+    private val SERIAL_SCAN_EXTENSIONS = setOf("iso", "bin", "pbp", "3ds")
+
     fun parseDocumentFile(
         context: Context,
         baseStorageFile: BaseStorageFile,
@@ -69,16 +72,31 @@ object DocumentFileParser {
         context: Context,
         baseStorageFile: BaseStorageFile,
     ): StorageFile {
-        val diskInfo =
-            context.contentResolver.openInputStream(baseStorageFile.uri)
-                ?.let { inputStream -> SerialScanner.extractInfo(baseStorageFile.name, inputStream) }
+        // Extensions that never carry a serial — skip serial scan entirely and go straight to CRC.
+        val needsSerialScan = SERIAL_SCAN_EXTENSIONS.contains(baseStorageFile.extension)
 
-        val crc32 =
-            if (baseStorageFile.size < MAX_SIZE_CRC32 && diskInfo?.serial == null) {
+        // ── Optimisation: single stream read when possible ─────────────────────────────
+        // For file types that don't need a serial scan we only open the stream once (for
+        // CRC). For files that DO need a scan we check whether a serial was found; if it
+        // was, we skip CRC (the serial is a better identifier). Only the rare case where
+        // we need a serial scan AND the scan finds nothing falls back to a second open.
+        val diskInfo: SerialScanner.DiskInfo?
+        val crc32: String?
+
+        if (!needsSerialScan) {
+            diskInfo = null
+            crc32 = if (baseStorageFile.size < MAX_SIZE_CRC32) {
                 context.contentResolver.openInputStream(baseStorageFile.uri)?.calculateCrc32()
-            } else {
-                null
-            }
+            } else null
+        } else {
+            diskInfo = context.contentResolver.openInputStream(baseStorageFile.uri)
+                ?.let { SerialScanner.extractInfo(baseStorageFile.name, it) }
+
+            crc32 = if (diskInfo?.serial == null && baseStorageFile.size < MAX_SIZE_CRC32) {
+                // Serial scan found nothing — fall back to CRC (second open)
+                context.contentResolver.openInputStream(baseStorageFile.uri)?.calculateCrc32()
+            } else null
+        }
 
         Timber.d("Parsed standard file: $baseStorageFile")
 

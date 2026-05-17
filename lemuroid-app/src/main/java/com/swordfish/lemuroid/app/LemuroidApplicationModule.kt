@@ -138,6 +138,9 @@ abstract class LemuroidApplicationModule {
                 .addCallback(GameSearchDao.CALLBACK)
                 .addMigrations(GameSearchDao.MIGRATION, Migrations.VERSION_8_9)
                 .fallbackToDestructiveMigration()
+                // WAL mode allows concurrent reads without blocking writers,
+                // which is essential now that scan batches run in parallel.
+                .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .build()
 
         @Provides

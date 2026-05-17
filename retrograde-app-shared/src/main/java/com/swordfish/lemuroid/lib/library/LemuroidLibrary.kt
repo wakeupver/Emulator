@@ -34,6 +34,9 @@ import com.swordfish.lemuroid.lib.storage.StorageProvider
 import com.swordfish.lemuroid.lib.storage.StorageProviderRegistry
 import dagger.Lazy
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
@@ -70,7 +73,7 @@ class LemuroidLibrary(
         val gameMetadata = gameMetadataProvider.get()
         val enabledProviders = storageProviderRegistry.get().enabledProviders
         enabledProviders.asFlow()
-            .flatMapConcat { indexSingleProvider(it, startedAtMs, gameMetadata) }
+            .flatMapMerge(PROVIDER_CONCURRENCY) { indexSingleProvider(it, startedAtMs, gameMetadata) }
             .collect()
     }
 
@@ -83,7 +86,7 @@ class LemuroidLibrary(
         return provider.listBaseStorageFiles()
             .flatMapConcat { StorageFilesMerger.mergeDataFiles(provider, it).asFlow() }
             .batchWithSizeAndTime(MAX_BUFFER_SIZE, MAX_TIME)
-            .flatMapMerge { processBatch(it, provider, startedAtMs, gameMetadata) }
+            .flatMapMerge(BATCH_CONCURRENCY) { processBatch(it, provider, startedAtMs, gameMetadata) }
     }
 
     private suspend fun processBatch(
@@ -92,22 +95,31 @@ class LemuroidLibrary(
         startedAtMs: Long,
         gameMetadata: GameMetadataProvider,
     ) = flow<Unit> {
-        val entries = batch.map { fetchEntriesFromDatabase(it) }
+        // ── Optimisation 1: single batch DB query instead of N individual queries ──
+        val uris = batch.map { it.primaryFile.uri.toString() }
+        val existingGamesByUri =
+            retrogradedb.gameDao()
+                .selectByFileUris(uris)
+                .associateBy { it.fileUri }
+
+        val entries = batch.map { buildScanEntry(it, existingGamesByUri[it.primaryFile.uri.toString()]) }
 
         val existingEntries = entries.filterIsInstance<ScanEntry.GameFile>()
         handleExistingEntries(existingEntries, startedAtMs)
 
+        // ── Optimisation 2: build metadata for new entries in parallel ──
         val newEntries =
-            entries.filterIsInstance<ScanEntry.File>()
-                .map { buildEntryFromMetadata(it.file, provider, gameMetadata, startedAtMs) }
+            coroutineScope {
+                entries.filterIsInstance<ScanEntry.File>()
+                    .map { entry ->
+                        async {
+                            buildEntryFromMetadata(entry.file, provider, gameMetadata, startedAtMs)
+                        }
+                    }
+                    .awaitAll()
+            }
 
         handleNewEntries(newEntries, startedAtMs, provider)
-    }
-
-    private fun fetchEntriesFromDatabase(storageFile: GroupedStorageFiles): ScanEntry {
-        Timber.d("Retrieving scan entry for uri: ${storageFile.primaryFile}")
-        val game = retrogradedb.gameDao().selectByFileUri(storageFile.primaryFile.uri.toString())
-        return buildScanEntry(storageFile, game)
     }
 
     private fun buildScanEntry(
@@ -334,8 +346,15 @@ class LemuroidLibrary(
     }
 
     companion object {
-        // We batch database updates to avoid unnecessary UI updates.
-        const val MAX_BUFFER_SIZE = 200
-        const val MAX_TIME = 5000
+        // Smaller batches allow more parallel processing with lower latency
+        const val MAX_BUFFER_SIZE = 50
+        // Flush more frequently so the UI gets updated sooner
+        const val MAX_TIME = 1500
+
+        // How many batches can be processed concurrently (I/O bound, so > CPU count is fine)
+        const val BATCH_CONCURRENCY = 4
+
+        // Parallel provider indexing (usually only 1-2 providers exist)
+        const val PROVIDER_CONCURRENCY = 2
     }
 }

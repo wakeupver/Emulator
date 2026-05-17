@@ -17,8 +17,9 @@ import com.swordfish.lemuroid.lib.storage.RomFiles
 import com.swordfish.lemuroid.lib.storage.StorageFile
 import com.swordfish.lemuroid.lib.storage.StorageProvider
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
 import java.io.InputStream
@@ -51,30 +52,28 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
         return preferenceManager.getString(prefString, null)
     }
 
+    /**
+     * Traverses directories in parallel using channelFlow + recursive coroutine launches.
+     * Each discovered sub-directory is listed concurrently, drastically reducing wall-clock
+     * time for libraries with many sub-folders (e.g. one folder per system).
+     */
     private fun traverseDirectoryEntries(rootUri: Uri): Flow<List<BaseStorageFile>> =
-        flow {
-            val directoryDocumentIds = mutableListOf<String>()
-            DocumentsContract.getTreeDocumentId(rootUri)?.let { directoryDocumentIds.add(it) }
+        channelFlow {
+            val rootDocumentId = DocumentsContract.getTreeDocumentId(rootUri) ?: return@channelFlow
 
-            while (directoryDocumentIds.isNotEmpty()) {
-                val currentDirectoryDocumentId = directoryDocumentIds.removeAt(0)
-
-                val result =
-                    runCatching {
-                        listBaseStorageFiles(rootUri, currentDirectoryDocumentId)
+            fun launchTraversal(documentId: String) {
+                launch {
+                    val result = runCatching { listBaseStorageFiles(rootUri, documentId) }
+                    if (result.isFailure) {
+                        Timber.e(result.exceptionOrNull(), "Error listing files in $documentId")
                     }
-                if (result.isFailure) {
-                    Timber.e(result.exceptionOrNull(), "Error while listing files")
+                    val (files, subDirs) = result.getOrDefault(emptyList<BaseStorageFile>() to emptyList())
+                    if (files.isNotEmpty()) send(files)
+                    subDirs.forEach { launchTraversal(it) }
                 }
-
-                val (files, directories) =
-                    result.getOrDefault(
-                        listOf<BaseStorageFile>() to listOf<String>(),
-                    )
-
-                emit(files)
-                directoryDocumentIds.addAll(directories)
             }
+
+            launchTraversal(rootDocumentId)
         }
 
     private fun listBaseStorageFiles(

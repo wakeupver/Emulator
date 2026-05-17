@@ -16,7 +16,25 @@ class LibretroDBMetadataProvider(private val ovgdbManager: LibretroDBManager) :
     GameMetadataProvider {
     companion object {
         private val THUMB_REPLACE = Regex("[&*/:`<>?\\\\|]")
+
+        /**
+         * LRU cache for filename → LibretroRom lookups.
+         *
+         * findByFilename / findByPathAndFilename both call [LibretroDatabase.gameDao().findByFileName].
+         * During a library scan the same filename can be queried multiple times (once per lookup
+         * strategy). A small cache avoids redundant SQLite round-trips which, on a read-only
+         * asset-backed database, will always return the same result for the same input.
+         *
+         * 2 000 entries × ~500 B per LibretroRom ≈ ~1 MB peak — safe for all devices.
+         */
+        private const val FILENAME_CACHE_SIZE = 2_000
     }
+
+    private val filenameCache: LinkedHashMap<String, LibretroRom?> =
+        object : LinkedHashMap<String, LibretroRom?>(FILENAME_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, LibretroRom?>) =
+                size > FILENAME_CACHE_SIZE
+        }
 
     private val sortedSystemIds: List<String> by lazy {
         SystemID.values()
@@ -59,11 +77,25 @@ class LibretroDBMetadataProvider(private val ovgdbManager: LibretroDBManager) :
         )
     }
 
+    /** Returns a cached DB lookup by filename, populating the cache on a miss. */
+    private suspend fun cachedFindByFileName(
+        db: LibretroDatabase,
+        name: String,
+    ): LibretroRom? {
+        // Fast path: in cache (hit or deliberate null sentinel)
+        synchronized(filenameCache) { if (filenameCache.containsKey(name)) return filenameCache[name] }
+
+        // Slow path: DB query, then cache result (including null so we don't query again)
+        val result = db.gameDao().findByFileName(name)
+        synchronized(filenameCache) { filenameCache[name] = result }
+        return result
+    }
+
     private suspend fun findByFilename(
         db: LibretroDatabase,
         file: StorageFile,
     ): GameMetadata? {
-        return db.gameDao().findByFileName(file.name)
+        return cachedFindByFileName(db, file.name)
             .filterNullable { extractGameSystem(it).scanOptions.scanByFilename }
             ?.let { convertToGameMetadata(it) }
     }
@@ -72,7 +104,8 @@ class LibretroDBMetadataProvider(private val ovgdbManager: LibretroDBManager) :
         db: LibretroDatabase,
         file: StorageFile,
     ): GameMetadata? {
-        return db.gameDao().findByFileName(file.name)
+        // Re-uses the cache — no extra DB hit even when called right after findByFilename.
+        return cachedFindByFileName(db, file.name)
             .filterNullable { extractGameSystem(it).scanOptions.scanByPathAndFilename }
             .filterNullable { parentContainsSystem(file.path, extractGameSystem(it).id.dbname) }
             ?.let { convertToGameMetadata(it) }
@@ -101,7 +134,7 @@ class LibretroDBMetadataProvider(private val ovgdbManager: LibretroDBManager) :
         parent: String?,
         dbname: String,
     ): Boolean {
-        return parent?.toLowerCase(Locale.getDefault())?.contains(dbname) == true
+        return parent?.lowercase(Locale.getDefault())?.contains(dbname) == true
     }
 
     private suspend fun findByCRC(
@@ -141,18 +174,15 @@ class LibretroDBMetadataProvider(private val ovgdbManager: LibretroDBManager) :
             return null
         }
 
-        val result =
-            system?.let {
-                GameMetadata(
-                    name = file.extensionlessName,
-                    romName = file.name,
-                    thumbnail = null,
-                    system = it.id.dbname,
-                    developer = null,
-                )
-            }
-
-        return result
+        return system?.let {
+            GameMetadata(
+                name = file.extensionlessName,
+                romName = file.name,
+                thumbnail = null,
+                system = it.id.dbname,
+                developer = null,
+            )
+        }
     }
 
     private fun extractGameSystem(rom: LibretroRom): GameSystem {

@@ -1,8 +1,13 @@
 package com.swordfish.lemuroid.common.coroutines
 
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 suspend fun <T> Flow<T>.safeCollect(block: suspend (T) -> Unit) {
@@ -25,24 +30,60 @@ suspend fun <T> Flow<T>.safeCollect(
 
 fun <T> Flow<T>.batchWithTime(maxMillis: Int) = batchWithSizeAndTime(Int.MAX_VALUE, maxMillis)
 
+/**
+ * Batches upstream values by count OR time — whichever threshold is hit first.
+ *
+ * The original implementation used a plain [flow] which means the upstream and
+ * downstream ran on the same coroutine: the upstream could not produce new items
+ * while a batch was being processed downstream (back-pressure serialisation).
+ *
+ * The new implementation uses [channelFlow] with a dedicated timer coroutine so:
+ *  - The upstream keeps producing without being blocked by downstream processing.
+ *  - Time-based flushes are accurate even when the upstream is slow.
+ *  - Size-based flushes still work correctly.
+ */
 fun <T> Flow<T>.batchWithSizeAndTime(
     maxSize: Int,
     maxMillis: Int,
 ): Flow<List<T>> =
-    flow {
+    channelFlow {
         val batch = mutableListOf<T>()
-        var lastEmission = System.currentTimeMillis()
+        val mutex = kotlinx.coroutines.sync.Mutex()
 
-        collect { value ->
-            batch.add(value)
-            if (batch.size >= maxSize || System.currentTimeMillis() > lastEmission + maxMillis) {
-                emit(batch.toList())
-                batch.clear()
-                lastEmission = System.currentTimeMillis()
+        // Timer coroutine: flush current batch every maxMillis ms regardless of size.
+        val timerJob = launch {
+            while (true) {
+                delay(maxMillis.toLong())
+                mutex.lock()
+                try {
+                    if (batch.isNotEmpty()) {
+                        send(batch.toList())
+                        batch.clear()
+                    }
+                } finally {
+                    mutex.unlock()
+                }
             }
         }
 
-        if (batch.isNotEmpty()) emit(batch)
+        try {
+            collect { value ->
+                mutex.lock()
+                try {
+                    batch.add(value)
+                    if (batch.size >= maxSize) {
+                        send(batch.toList())
+                        batch.clear()
+                    }
+                } finally {
+                    mutex.unlock()
+                }
+            }
+        } finally {
+            timerJob.cancel()
+            // Flush whatever is left.
+            if (batch.isNotEmpty()) send(batch.toList())
+        }
     }
 
 fun <T1, T2, T3, T4, T5, T6, R> combine(
