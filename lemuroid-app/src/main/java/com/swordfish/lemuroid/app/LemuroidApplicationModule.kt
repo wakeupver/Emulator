@@ -36,7 +36,6 @@ import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.app.shared.main.GameLaunchTaskHandler
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.ControllerConfigsManager
-import com.swordfish.lemuroid.app.shared.settings.StorageBaseDirPicker
 import com.swordfish.lemuroid.app.shared.settings.StorageFrameworkPickerLauncher
 import com.swordfish.lemuroid.app.tv.channel.ChannelHandler
 import com.swordfish.lemuroid.app.tv.settings.BiosPreferences
@@ -117,10 +116,6 @@ abstract class LemuroidApplicationModule {
     abstract fun storageFrameworkPickerLauncher(): StorageFrameworkPickerLauncher
 
     @PerActivity
-    @ContributesAndroidInjector
-    abstract fun storageBaseDirPicker(): StorageBaseDirPicker
-
-    @PerActivity
     @ContributesAndroidInjector(modules = [GamePadBindingActivity.Module::class])
     abstract fun gamepadBindingActivity(): GamePadBindingActivity
 
@@ -141,7 +136,7 @@ abstract class LemuroidApplicationModule {
         fun retrogradeDb(app: LemuroidApplication) =
             Room.databaseBuilder(app, RetrogradeDatabase::class.java, RetrogradeDatabase.DB_NAME)
                 .addCallback(GameSearchDao.CALLBACK)
-                .addMigrations(GameSearchDao.MIGRATION, Migrations.VERSION_8_9, Migrations.VERSION_9_10)
+                .addMigrations(GameSearchDao.MIGRATION, Migrations.VERSION_8_9)
                 .fallbackToDestructiveMigration()
                 .build()
 
@@ -236,11 +231,6 @@ abstract class LemuroidApplicationModule {
         @PerApp
         @JvmStatic
         fun savesManager(directoriesManager: DirectoriesManager) = SavesManager(directoriesManager)
-
-        @Provides
-        @PerApp
-        @JvmStatic
-        fun patchCodesManager(db: RetrogradeDatabase) = com.swordfish.lemuroid.lib.cheats.PatchCodesManager(db)
 
         @Provides
         @PerApp
