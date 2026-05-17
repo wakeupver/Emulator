@@ -2,6 +2,7 @@ package com.swordfish.lemuroid.lib.storage.local
 
 import android.content.Context
 import com.swordfish.lemuroid.common.kotlin.toStringCRC32
+import com.swordfish.lemuroid.lib.library.GameSystem
 import com.swordfish.lemuroid.lib.storage.BaseStorageFile
 import com.swordfish.lemuroid.lib.storage.StorageFile
 import com.swordfish.lemuroid.lib.storage.scanner.SerialScanner
@@ -26,6 +27,12 @@ object DocumentFileParser {
     // 512 KB read buffer — much faster than the default 8–16 KB for large files.
     private const val CRC_BUFFER_SIZE = 512 * 1024
 
+    /**
+     * Extensions that require serial-number scanning (disc images).
+     * These still need a small header read but skip the full-file CRC pass.
+     */
+    private val SERIAL_SCAN_EXTENSIONS = setOf("iso", "bin", "pbp", "3ds")
+
     fun parseDocumentFile(
         context: Context,
         baseStorageFile: BaseStorageFile,
@@ -37,6 +44,27 @@ object DocumentFileParser {
             Timber.d("Detected standard file. ${baseStorageFile.name}")
             parseStandardFile(context, baseStorageFile)
         }
+    }
+
+    /**
+     * Fast-path: returns a StorageFile with systemID populated but NO file I/O.
+     *
+     * Called when the file extension belongs to a single known system (e.g. .gba,
+     * .nes, .sfc, .nds, .n64, .gb, .gbc …). The metadata provider will match it
+     * instantly via [findByUniqueExtension] without reading the file contents.
+     */
+    private fun parseUniqueExtensionFile(baseStorageFile: BaseStorageFile): StorageFile {
+        Timber.d("Fast-path (unique extension): ${baseStorageFile.name}")
+        val system = GameSystem.findByUniqueFileExtension(baseStorageFile.extension)
+        return StorageFile(
+            name = baseStorageFile.name,
+            size = baseStorageFile.size,
+            crc = null,
+            serial = null,
+            uri = baseStorageFile.uri,
+            path = baseStorageFile.uri.path,
+            systemID = system?.id,
+        )
     }
 
     private fun parseZipFile(
@@ -79,6 +107,36 @@ object DocumentFileParser {
         context: Context,
         baseStorageFile: BaseStorageFile,
     ): StorageFile {
+        val ext = baseStorageFile.extension.lowercase()
+
+        // ── Fast-path A: unique-extension files (gba, nes, sfc, gb, gbc, nds, n64…) ─
+        // These are unambiguously identified by their extension alone.
+        // Skip ALL file I/O — the metadata provider will match via findByUniqueExtension.
+        if (GameSystem.findByUniqueFileExtension(ext) != null) {
+            return parseUniqueExtensionFile(baseStorageFile)
+        }
+
+        // ── Fast-path B: disc images (iso, bin, pbp, 3ds) ────────────────────────────
+        // Only read the small header for serial extraction; skip the full-file CRC pass.
+        // These files are matched via serial number, folder name, or path heuristics.
+        if (ext in SERIAL_SCAN_EXTENSIONS) {
+            var diskInfo: SerialScanner.DiskInfo? = null
+            context.contentResolver.openInputStream(baseStorageFile.uri)?.use { rawStream ->
+                diskInfo = SerialScanner.extractInfo(baseStorageFile.name, rawStream)
+            }
+            Timber.d("Disc fast-path: ${baseStorageFile.name} serial=${diskInfo?.serial}")
+            return StorageFile(
+                name = baseStorageFile.name,
+                size = baseStorageFile.size,
+                crc = null,
+                serial = diskInfo?.serial,
+                uri = baseStorageFile.uri,
+                path = baseStorageFile.uri.path,
+                systemID = diskInfo?.systemID,
+            )
+        }
+
+        // ── Standard path: CRC32 + serial for small unknown-extension files ───────────
         val shouldComputeCrc = baseStorageFile.size < MAX_SIZE_CRC32
 
         var diskInfo: SerialScanner.DiskInfo? = null

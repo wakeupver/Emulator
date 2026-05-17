@@ -29,6 +29,7 @@ import com.swordfish.lemuroid.lib.library.metadata.GameMetadataProvider
 import com.swordfish.lemuroid.lib.storage.BaseStorageFile
 import com.swordfish.lemuroid.lib.storage.GroupedStorageFiles
 import com.swordfish.lemuroid.lib.storage.RomFiles
+import com.swordfish.lemuroid.lib.library.GameSystem
 import com.swordfish.lemuroid.lib.storage.StorageFile
 import com.swordfish.lemuroid.lib.storage.StorageProvider
 import com.swordfish.lemuroid.lib.storage.StorageProviderRegistry
@@ -246,6 +247,21 @@ class LemuroidLibrary(
         metadataProvider: GameMetadataProvider,
         startedAtMs: Long,
     ): ScanEntry {
+        // ── Quick pre-check (zero I/O) ─────────────────────────────────────────────
+        // If the primary file has a unique extension (e.g. .gba, .nes, .sfc, .nds)
+        // we can build a lightweight StorageFile and ask the metadata provider right
+        // away. Only if that fails do we open the file for CRC / serial scanning.
+        val primaryFile = groupedStorageFile.primaryFile
+        val quickStorageFile = quickStorageFileOrNull(primaryFile)
+        if (quickStorageFile != null) {
+            val quickMetadata = runCatching { metadataProvider.retrieveMetadata(quickStorageFile) }.getOrNull()
+            if (quickMetadata != null) {
+                val game = convertGameMetadataToGame(groupedStorageFile, quickStorageFile, quickMetadata, startedAtMs)
+                if (game != null) return ScanEntry.GameFile(groupedStorageFile, game)
+            }
+        }
+
+        // ── Full scan (opens file for CRC / serial if needed) ─────────────────────
         val game =
             sortedFilesForScanning(groupedStorageFile).asFlow()
                 .mapNotNull { safeStorageFile(provider, it) }
@@ -256,6 +272,25 @@ class LemuroidLibrary(
                 .firstOrNull()
 
         return buildScanEntry(groupedStorageFile, game)
+    }
+
+    /**
+     * Returns a lightweight [StorageFile] built purely from the file name and
+     * size — no stream is opened. Returns null when the extension is not unique
+     * (i.e. can't be reliably identified without reading the file).
+     */
+    private fun quickStorageFileOrNull(baseStorageFile: BaseStorageFile): StorageFile? {
+        val system = GameSystem.findByUniqueFileExtension(baseStorageFile.extension)
+            ?: return null
+        return StorageFile(
+            name = baseStorageFile.name,
+            size = baseStorageFile.size,
+            crc = null,
+            serial = null,
+            uri = baseStorageFile.uri,
+            path = baseStorageFile.uri.path,
+            systemID = system.id,
+        )
     }
 
     private fun safeStorageFile(
