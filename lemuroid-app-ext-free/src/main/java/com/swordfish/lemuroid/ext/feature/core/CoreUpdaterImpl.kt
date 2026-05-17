@@ -37,7 +37,9 @@ import kotlinx.coroutines.withContext
 import retrofit2.Retrofit
 import timber.log.Timber
 import java.io.File
+import java.io.InputStream
 import java.util.zip.ZipInputStream
+import okhttp3.ResponseBody
 
 class CoreUpdaterImpl(
     private val directoriesManager: DirectoriesManager,
@@ -129,9 +131,9 @@ class CoreUpdaterImpl(
         val body = response.body() ?: throw Exception("Empty response body for $uri")
 
         withContext<Unit>(Dispatchers.IO) {
-            val inputStream: java.io.InputStream = body.byteStream()
+            val inputStream: InputStream = body.byteStream()
             inputStream.use {
-                val zip = java.util.zip.ZipInputStream(inputStream)
+                val zip = ZipInputStream(inputStream)
                 zip.use {
                     var entry = zip.nextEntry
                     var extracted = false
