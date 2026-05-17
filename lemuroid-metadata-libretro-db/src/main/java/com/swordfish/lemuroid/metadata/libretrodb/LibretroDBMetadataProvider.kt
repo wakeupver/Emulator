@@ -168,7 +168,10 @@ class LibretroDBMetadataProvider(private val ovgdbManager: LibretroDBManager) :
     }
 
     private fun findByUniqueExtension(file: StorageFile): GameMetadata? {
-        val system = GameSystem.findByUniqueFileExtension(file.extension)
+        // Also try compound extensions like "sfc.zip" or "md.zip"
+        val system =
+            GameSystem.findByUniqueFileExtension(file.extension)
+                ?: extractCompoundExtension(file.name)?.let { GameSystem.findByUniqueFileExtension(it) }
 
         if (system?.scanOptions?.scanByUniqueExtension == false) {
             return null
@@ -183,6 +186,12 @@ class LibretroDBMetadataProvider(private val ovgdbManager: LibretroDBManager) :
                 developer = null,
             )
         }
+    }
+
+    /** Extracts a compound extension from filenames like "game.sfc.zip" → "sfc.zip". */
+    private fun extractCompoundExtension(name: String): String? {
+        val parts = name.split(".")
+        return if (parts.size >= 3) "${parts[parts.size - 2]}.${parts[parts.size - 1]}" else null
     }
 
     private fun extractGameSystem(rom: LibretroRom): GameSystem {

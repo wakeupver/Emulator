@@ -2,6 +2,7 @@ package com.swordfish.lemuroid.lib.storage.local
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import androidx.leanback.preference.LeanbackPreferenceFragment
@@ -188,6 +189,10 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
         game: Game,
         dataFile: DataFile,
     ): File {
+        // Prefer the real filesystem path — skips the expensive cache-copy step entirely.
+        val realFile = resolveRealFilePath(Uri.parse(dataFile.fileUri))
+        if (realFile != null) return realFile
+
         val cacheFile =
             GameCacheUtils.getDataFileForGame(
                 SAF_CACHE_SUBFOLDER,
@@ -196,9 +201,7 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
                 dataFile,
             )
 
-        if (cacheFile.exists()) {
-            return cacheFile
-        }
+        if (cacheFile.exists()) return cacheFile
 
         val stream = context.contentResolver.openInputStream(Uri.parse(dataFile.fileUri))!!
         stream.writeToFile(cacheFile)
@@ -216,15 +219,45 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
         game: Game,
         originalDocument: DocumentFile,
     ): File {
-        val cacheFile = GameCacheUtils.getCacheFileForGame(SAF_CACHE_SUBFOLDER, context, game)
+        // Prefer the real filesystem path — skips the expensive cache-copy step entirely.
+        val realFile = resolveRealFilePath(originalDocument.uri)
+        if (realFile != null) return realFile
 
-        if (cacheFile.exists()) {
-            return cacheFile
-        }
+        val cacheFile = GameCacheUtils.getCacheFileForGame(SAF_CACHE_SUBFOLDER, context, game)
+        if (cacheFile.exists()) return cacheFile
 
         val stream = context.contentResolver.openInputStream(originalDocument.uri)!!
         stream.writeToFile(cacheFile)
         return cacheFile
+    }
+
+    /**
+     * Attempts to resolve a SAF content URI to a real filesystem path.
+     * Handles primary storage and removable SD cards.
+     * Returns null if the path cannot be determined or the file is not readable.
+     */
+    private fun resolveRealFilePath(uri: Uri): File? {
+        return try {
+            if (uri.scheme == "file") return File(uri.path ?: return null)
+            if (!DocumentsContract.isDocumentUri(context, uri)) return null
+
+            val docId = DocumentsContract.getDocumentId(uri)
+            val parts = docId.split(":").takeIf { it.size == 2 } ?: return null
+            val volumeId = parts[0]
+            val relativePath = parts[1]
+
+            val root = when {
+                volumeId.equals("primary", ignoreCase = true) ->
+                    Environment.getExternalStorageDirectory()
+                else ->
+                    File("/storage/$volumeId")
+            }
+
+            File(root, relativePath).takeIf { it.exists() && it.canRead() }
+        } catch (e: Exception) {
+            Timber.w(e, "SAFProvider: Could not resolve real path, will use cache")
+            null
+        }
     }
 
     override fun getInputStream(uri: Uri): InputStream? {

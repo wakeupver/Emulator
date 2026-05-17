@@ -41,7 +41,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.mapNotNull
@@ -84,7 +83,7 @@ class LemuroidLibrary(
         gameMetadata: GameMetadataProvider,
     ): Flow<Unit> {
         return provider.listBaseStorageFiles()
-            .flatMapConcat { StorageFilesMerger.mergeDataFiles(provider, it).asFlow() }
+            .flatMapMerge(SCAN_CONCURRENCY) { StorageFilesMerger.mergeDataFiles(provider, it).asFlow() }
             .batchWithSizeAndTime(MAX_BUFFER_SIZE, MAX_TIME)
             .flatMapMerge(BATCH_CONCURRENCY) { processBatch(it, provider, startedAtMs, gameMetadata) }
     }
@@ -346,10 +345,13 @@ class LemuroidLibrary(
     }
 
     companion object {
-        // Smaller batches allow more parallel processing with lower latency
-        const val MAX_BUFFER_SIZE = 50
-        // Flush more frequently so the UI gets updated sooner
-        const val MAX_TIME = 1500
+        const val MAX_BUFFER_SIZE = 200
+        const val MAX_TIME = 1000
+
+        // Number of directory groups scanned in parallel.
+        // Keeps all CPU cores busy during the I/O-bound metadata retrieval phase
+        // without overwhelming the ContentResolver.
+        const val SCAN_CONCURRENCY = 4
 
         // How many batches can be processed concurrently (I/O bound, so > CPU count is fine)
         const val BATCH_CONCURRENCY = 4
