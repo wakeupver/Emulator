@@ -15,6 +15,7 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <functional>
 #include "rumble.h"
 #include "log.h"
 #include "environment.h"

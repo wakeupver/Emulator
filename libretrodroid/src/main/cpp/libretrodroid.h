@@ -28,6 +28,7 @@
 #include <mutex>
 #include <memory>
 #include <optional>
+#include <functional>
 
 #include "log.h"
 #include "core.h"
