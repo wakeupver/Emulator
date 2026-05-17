@@ -34,29 +34,31 @@ jobs:
           STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
-        run: ./gradlew assembleFreeDynamic
+        run: ./gradlew assembleFreeRelease
 
-      - name: Upload Artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: lemuroid-app/build/outputs/apk/freeDynamic/release/*.apk
+          path: lemuroid-app/build/outputs/apk/free/release/lemuroid-app-free-release.apk
+          if-no-files-found: error
 
   publish_apk:
     name: Publish APK on Github
-    needs: [ build ]
+    needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Artifact
+      - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
           name: apk
+          path: ./apk
 
       - name: Create pre-release
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: true
-          title: "Pre-release"
-          files: lemuroid-app-free-dynamic-release.apk
+          title: "Pre-release ${{ github.ref_name }}"
+          files: ./apk/lemuroid-app-free-release.apk

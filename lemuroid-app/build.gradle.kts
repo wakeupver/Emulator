@@ -46,10 +46,10 @@ android {
         }
 
         maybeCreate("release").apply {
-            storeFile = file("$rootDir/release.jks")
-            keyAlias = "lemuroid"
-            storePassword = "lemuroid"
-            keyPassword = "lemuroid"
+            storeFile = file(System.getenv("STORE_FILE") ?: "$rootDir/release.jks")
+            keyAlias = System.getenv("KEY_ALIAS") ?: "lemuroid"
+            storePassword = System.getenv("STORE_PASSWORD") ?: "lemuroid123"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "lemuroid123"
         }
     }
 
