@@ -126,9 +126,13 @@ class CoreUpdaterImpl(
             throw Exception("Download failed (${response.code()}): ${response.errorBody()?.string()}")
         }
 
+        val body = response.body() ?: throw Exception("Empty response body for $uri")
+
         withContext<Unit>(Dispatchers.IO) {
-            response.body()?.byteStream()?.use { inputStream ->
-                ZipInputStream(inputStream).use { zip ->
+            val inputStream: java.io.InputStream = body.byteStream()
+            inputStream.use {
+                val zip = java.util.zip.ZipInputStream(inputStream)
+                zip.use {
                     var entry = zip.nextEntry
                     var extracted = false
                     while (entry != null) {
@@ -145,7 +149,7 @@ class CoreUpdaterImpl(
                         throw Exception("No .so found inside zip for $expectedFileName")
                     }
                 }
-            } ?: throw Exception("Empty response body for $uri")
+            }
         }
     }
 
