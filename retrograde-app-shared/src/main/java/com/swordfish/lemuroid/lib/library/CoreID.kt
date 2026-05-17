@@ -51,6 +51,11 @@ enum class CoreID(
         "PCSXReARMed",
         "libpcsx_rearmed_libretro_android.so",
     ),
+    SWANSTATION(
+        "swanstation",
+        "SwanStation",
+        "libswanstation_libretro_android.so",
+    ),
     PPSSPP(
         "ppsspp",
         "PPSSPP",
@@ -110,6 +115,11 @@ enum class CoreID(
         "dosbox_pure",
         "DosBox Pure",
         "libdosbox_pure_libretro_android.so",
+    ),
+    FLYCAST(
+        "flycast",
+        "Flycast",
+        "libflycast_libretro_android.so",
     ),
     ;
 

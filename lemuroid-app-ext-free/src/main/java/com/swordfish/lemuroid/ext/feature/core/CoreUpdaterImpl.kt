@@ -21,10 +21,7 @@ package com.swordfish.lemuroid.ext.feature.core
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.net.Uri
-import android.os.Build
 import com.swordfish.lemuroid.common.files.safeDelete
-import com.swordfish.lemuroid.common.kotlin.writeToFile
 import com.swordfish.lemuroid.lib.core.CoreUpdater
 import com.swordfish.lemuroid.lib.library.CoreID
 import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
@@ -37,7 +34,7 @@ import kotlinx.coroutines.withContext
 import retrofit2.Retrofit
 import timber.log.Timber
 import java.io.File
-import java.io.InputStream
+import java.io.FileOutputStream
 import java.util.zip.ZipInputStream
 
 class CoreUpdaterImpl(
@@ -46,11 +43,12 @@ class CoreUpdaterImpl(
 ) : CoreUpdater {
 
     companion object {
-        // Libretro nightly buildbot base URL
-        private const val NIGHTLY_BASE_URL = "https://buildbot.libretro.com/nightly/android/latest"
+        // Libretro nightly buildbot – Android arm64-v8a
+        private const val LIBRETRO_NIGHTLY_BASE =
+            "https://buildbot.libretro.com/nightly/android/latest/arm64-v8a/"
 
-        // Subfolder used to cache nightly builds (date-based for auto-refresh)
-        private val CORES_VERSION = "nightly-" + java.time.LocalDate.now().toString()
+        // Sub-folder inside the app's cores directory for nightly downloads
+        private const val NIGHTLY_DIR = "nightly"
     }
 
     private val api = retrofit.create(CoreUpdater.CoreManagerApi::class.java)
@@ -59,18 +57,12 @@ class CoreUpdaterImpl(
         context: Context,
         coreIDs: List<CoreID>,
     ) {
-        val sharedPreferences = SharedPreferencesHelper.getSharedPreferences(context.applicationContext)
+        val sharedPreferences =
+            SharedPreferencesHelper.getSharedPreferences(context.applicationContext)
         coreIDs.asFlow()
             .onEach { retrieveAssets(it, sharedPreferences) }
-            .onEach { retrieveFile(context, it) }
+            .onEach { downloadCoreFromLibretroNightly(it) }
             .collect()
-    }
-
-    private suspend fun retrieveFile(
-        context: Context,
-        coreID: CoreID,
-    ) {
-        findBundledLibrary(context, coreID) ?: downloadCoreFromNightly(coreID)
     }
 
     private suspend fun retrieveAssets(
@@ -81,103 +73,92 @@ class CoreUpdaterImpl(
             .retrieveAssetsIfNeeded(api, directoriesManager, sharedPreferences)
     }
 
-    private suspend fun downloadCoreFromNightly(coreID: CoreID): File {
-        Timber.i("Downloading core $coreID from Libretro nightly buildbot")
-
-        val mainCoresDirectory = directoriesManager.getCoresDirectory()
-        val coresDirectory = File(mainCoresDirectory, CORES_VERSION).apply { mkdirs() }
-
-        val libFileName = coreID.libretroFileName
-        val destFile = File(coresDirectory, libFileName)
-
-        if (destFile.exists()) {
-            return destFile
-        }
-
-        runCatching {
-            deleteOutdatedCores(mainCoresDirectory, CORES_VERSION)
-        }
-
-        // Nightly URL: <base>/<ABI>/<corename>_libretro_android.so.zip
-        val abi = getSupportedAbi()
-        val zipFileName = "$libFileName.zip"
-        val uri = Uri.parse("$NIGHTLY_BASE_URL/$abi/$zipFileName")
-
-        try {
-            downloadAndExtractZip(uri, destFile, libFileName)
-            return destFile
-        } catch (e: Throwable) {
-            destFile.safeDelete()
-            Timber.e(e, "Failed to download core $coreID from nightly: $uri")
-            throw e
-        }
-    }
-
     /**
-     * Nightly cores are distributed as .so.zip — download and extract the .so inside.
+     * Downloads a core from the libretro nightly buildbot (arm64-v8a).
+     *
+     * URL pattern:
+     *   https://buildbot.libretro.com/nightly/android/latest/arm64-v8a/{coreName}_libretro_android.so.zip
+     *
+     * The zip contains one entry:  {coreName}_libretro_android.so
+     * We extract and save it as:   lib{coreName}_libretro_android.so  (= coreID.libretroFileName)
+     * which is the name LibretroDroid expects.
      */
-    private suspend fun downloadAndExtractZip(
-        uri: Uri,
-        destFile: File,
-        expectedFileName: String,
-    ) {
-        val response = api.downloadFile(uri.toString())
+    private suspend fun downloadCoreFromLibretroNightly(coreID: CoreID): File =
+        withContext(Dispatchers.IO) {
+            val mainCoresDirectory = directoriesManager.getCoresDirectory()
+            val coresDirectory = File(mainCoresDirectory, NIGHTLY_DIR).apply { mkdirs() }
+            val destFile = File(coresDirectory, coreID.libretroFileName)
 
-        if (!response.isSuccessful) {
-            throw Exception("Download failed (${response.code()}): ${response.errorBody()?.string()}")
-        }
+            if (destFile.exists()) {
+                Timber.i("Core ${coreID.coreName} already present, skipping download")
+                return@withContext destFile
+            }
 
-        val body: InputStream = response.body() ?: throw Exception("Empty response body for $uri")
+            // Remove old versioned directories left by the previous LemuroidCores scheme
+            runCatching { deleteOutdatedCores(mainCoresDirectory) }
 
-        withContext<Unit>(Dispatchers.IO) {
-            body.use {
-                val zip = ZipInputStream(body)
-                zip.use {
-                    var entry = zip.nextEntry
-                    var extracted = false
-                    while (entry != null) {
-                        if (!entry.isDirectory && entry.name.endsWith(".so")) {
-                            destFile.outputStream().use { out ->
-                                zip.copyTo(out)
-                            }
-                            extracted = true
-                            break
-                        }
-                        entry = zip.nextEntry
-                    }
-                    if (!extracted) {
-                        throw Exception("No .so found inside zip for $expectedFileName")
-                    }
-                }
+            val zipUrl = buildNightlyZipUrl(coreID)
+            Timber.i("Downloading nightly core ${coreID.coreName} from $zipUrl")
+
+            try {
+                extractCoreFromZip(zipUrl, coreID, destFile)
+                destFile
+            } catch (e: Throwable) {
+                destFile.safeDelete()
+                throw e
             }
         }
+
+    private fun buildNightlyZipUrl(coreID: CoreID): String =
+        "$LIBRETRO_NIGHTLY_BASE${coreID.coreName}_libretro_android.so.zip"
+
+    private suspend fun extractCoreFromZip(
+        zipUrl: String,
+        coreID: CoreID,
+        destFile: File,
+    ) {
+        val response = api.downloadZip(zipUrl)
+
+        if (!response.isSuccessful) {
+            val msg = response.errorBody()?.string() ?: "HTTP ${response.code()}"
+            Timber.e("Failed to download nightly core ${coreID.coreName}: $msg")
+            throw Exception("Download failed for ${coreID.coreName}: $msg")
+        }
+
+        val zipInputStream: ZipInputStream =
+            response.body() ?: throw Exception("Empty body for ${coreID.coreName}")
+
+        // Entry inside the zip has NO "lib" prefix
+        val expectedEntry = "${coreID.coreName}_libretro_android.so"
+
+        zipInputStream.use { zis ->
+            var entry = zis.nextEntry
+            var found = false
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name == expectedEntry) {
+                    FileOutputStream(destFile).use { out -> zis.copyTo(out) }
+                    found = true
+                    break
+                }
+                entry = zis.nextEntry
+            }
+            if (!found) {
+                throw Exception(
+                    "Entry '$expectedEntry' not found inside zip for core ${coreID.coreName}",
+                )
+            }
+        }
+
+        Timber.i("Core ${coreID.coreName} saved to ${destFile.absolutePath}")
     }
 
     /**
-     * Pick the best ABI supported by the device and recognized by Libretro buildbot.
-     * Buildbot folders: arm64-v8a, armeabi-v7a, x86_64, x86
+     * Deletes every sub-directory that is NOT the nightly folder so that
+     * old LemuroidCores-versioned downloads (e.g. "1.17.0/") do not pile up.
      */
-    private fun getSupportedAbi(): String {
-        val nightlyAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
-        return Build.SUPPORTED_ABIS.firstOrNull { it in nightlyAbis } ?: "arm64-v8a"
-    }
-
-    private suspend fun findBundledLibrary(
-        context: Context,
-        coreID: CoreID,
-    ): File? =
-        withContext(Dispatchers.IO) {
-            File(context.applicationInfo.nativeLibraryDir)
-                .walkBottomUp()
-                .firstOrNull { it.name == coreID.libretroFileName }
-        }
-
-    private fun deleteOutdatedCores(
-        mainCoresDirectory: File,
-        currentVersion: String,
-    ) {
+    private fun deleteOutdatedCores(mainCoresDirectory: File) {
         mainCoresDirectory.listFiles()
-            ?.filter { it.name != currentVersion }
+            ?.filter { it.name != NIGHTLY_DIR }
             ?.forEach { it.deleteRecursively() }
     }
 }
