@@ -59,7 +59,9 @@ data class GameSystem(
                                             ExposedSetting.Value(
                                                 "disabled",
                                                 R.string.value_stella_filter_disabled,
-                                            ),
+                                            
+                            supportsLibretroVFS = true,
+),
                                             ExposedSetting.Value(
                                                 "composite",
                                                 R.string.value_stella_filter_composite,
@@ -101,7 +103,9 @@ data class GameSystem(
                                     ExposedSetting(
                                         "fceumm_overscan_h",
                                         R.string.setting_fceumm_overscan_h,
-                                    ),
+                                    
+                            supportsLibretroVFS = true,
+),
                                     ExposedSetting(
                                         "fceumm_overscan_v",
                                         R.string.setting_fceumm_overscan_v,
@@ -132,7 +136,9 @@ data class GameSystem(
                             CoreID.SNES9X,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.SNES),
+                                    0 to arrayListOf(ControllerConfigs.SNES
+                            supportsLibretroVFS = true,
+),
                                 ),
                         ),
                     ),
@@ -155,7 +161,9 @@ data class GameSystem(
                                             ExposedSetting.Value(
                                                 "disabled",
                                                 R.string.value_genesis_plus_gx_blargg_ntsc_filter_disabled,
-                                            ),
+                                            
+                            supportsLibretroVFS = true,
+),
                                             ExposedSetting.Value(
                                                 "monochrome",
                                                 R.string.value_genesis_plus_gx_blargg_ntsc_filter_monochrome,
@@ -229,7 +237,9 @@ data class GameSystem(
                                             ExposedSetting.Value(
                                                 "disabled",
                                                 R.string.value_genesis_plus_gx_blargg_ntsc_filter_disabled,
-                                            ),
+                                            
+                            supportsLibretroVFS = true,
+),
                                             ExposedSetting.Value(
                                                 "monochrome",
                                                 R.string.value_genesis_plus_gx_blargg_ntsc_filter_monochrome,
@@ -322,7 +332,9 @@ data class GameSystem(
                                             ExposedSetting.Value(
                                                 "disabled",
                                                 R.string.value_genesis_plus_gx_blargg_ntsc_filter_disabled,
-                                            ),
+                                            
+                            supportsLibretroVFS = true,
+),
                                             ExposedSetting.Value(
                                                 "monochrome",
                                                 R.string.value_genesis_plus_gx_blargg_ntsc_filter_monochrome,
@@ -425,7 +437,9 @@ data class GameSystem(
                                     ExposedSetting(
                                         "genesis_plus_gx_lcd_filter",
                                         R.string.setting_genesis_plus_gx_lcd_filter,
-                                    ),
+                                    
+                            supportsLibretroVFS = true,
+),
                                 ),
                             exposedAdvancedSettings =
                                 listOf(
@@ -455,7 +469,9 @@ data class GameSystem(
                                     ExposedSetting(
                                         "gambatte_gb_colorization",
                                         R.string.setting_gambatte_gb_colorization,
-                                    ),
+                                    
+                            supportsLibretroVFS = true,
+),
                                     ExposedSetting(
                                         "gambatte_gb_internal_palette",
                                         R.string.setting_gambatte_gb_internal_palette,
@@ -517,7 +533,9 @@ data class GameSystem(
                                             ExposedSetting.Value(
                                                 "disabled",
                                                 R.string.value_gambatte_mix_frames_disabled,
-                                            ),
+                                            
+                            supportsLibretroVFS = true,
+),
                                             ExposedSetting.Value(
                                                 "mix",
                                                 R.string.value_gambatte_mix_frames_mix,
@@ -577,7 +595,9 @@ data class GameSystem(
                                     ExposedSetting(
                                         "mgba_solar_sensor_level",
                                         R.string.setting_mgba_solar_sensor_level,
-                                    ),
+                                    
+                            supportsLibretroVFS = true,
+),
                                     ExposedSetting(
                                         "mgba_interframe_blending",
                                         R.string.setting_mgba_interframe_blending,
@@ -648,7 +668,9 @@ data class GameSystem(
                                     ExposedSetting(
                                         "mupen64plus-43screensize",
                                         R.string.setting_mupen64plus_43screensize,
-                                    ),
+                                    
+                            supportsLibretroVFS = true,
+),
                                     ExposedSetting(
                                         "mupen64plus-cpucore",
                                         R.string.setting_mupen64plus_cpucore,
@@ -871,7 +893,9 @@ data class GameSystem(
                                     ExposedSetting(
                                         "fbneo-frameskip",
                                         R.string.setting_fbneo_frameskip,
-                                    ),
+                                    
+                            supportsLibretroVFS = true,
+),
                                     ExposedSetting(
                                         "fbneo-cpu-speed-adjust",
                                         R.string.setting_fbneo_cpu_speed_adjust,
@@ -908,7 +932,9 @@ data class GameSystem(
                                         arrayListOf(
                                             ControllerConfigs.MAME_2003_4,
                                             ControllerConfigs.MAME_2003_6,
-                                        ),
+                                        
+                            supportsLibretroVFS = true,
+),
                                 ),
                         ),
                     ),
@@ -939,7 +965,9 @@ data class GameSystem(
                                             ExposedSetting.Value(
                                                 "top/bottom",
                                                 R.string.value_desmume_screens_layout_topbottom,
-                                            ),
+                                            
+                            supportsLibretroVFS = true,
+),
                                             ExposedSetting.Value(
                                                 "left/right",
                                                 R.string.value_desmume_screens_layout_leftright,
@@ -973,7 +1001,9 @@ data class GameSystem(
                                             ExposedSetting.Value(
                                                 "top-bottom",
                                                 R.string.value_melonds_screen_layout_topbottom,
-                                            ),
+                                            
+                            supportsLibretroVFS = true,
+),
                                             ExposedSetting.Value(
                                                 "left-right",
                                                 R.string.value_melonds_screen_layout_leftright,
@@ -1033,7 +1063,9 @@ data class GameSystem(
                             CoreID.PROSYSTEM,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.ATARI7800),
+                                    0 to arrayListOf(ControllerConfigs.ATARI7800
+                            supportsLibretroVFS = true,
+),
                                 ),
                         ),
                     ),
@@ -1051,7 +1083,9 @@ data class GameSystem(
                             requiredBIOSFiles =
                                 listOf(
                                     "lynxboot.img",
-                                ),
+                                
+                            supportsLibretroVFS = true,
+),
                             controllerConfigs =
                                 hashMapOf(
                                     0 to arrayListOf(ControllerConfigs.LYNX),
@@ -1096,7 +1130,9 @@ data class GameSystem(
                             CoreID.MEDNAFEN_PCE_FAST,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.PCE),
+                                    0 to arrayListOf(ControllerConfigs.PCE
+                            supportsLibretroVFS = true,
+),
                                 ),
                         ),
                     ),
@@ -1113,7 +1149,9 @@ data class GameSystem(
                             CoreID.MEDNAFEN_NGP,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.NGP),
+                                    0 to arrayListOf(ControllerConfigs.NGP
+                            supportsLibretroVFS = true,
+),
                                 ),
                         ),
                     ),
@@ -1129,7 +1167,9 @@ data class GameSystem(
                             CoreID.MEDNAFEN_NGP,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.NGP),
+                                    0 to arrayListOf(ControllerConfigs.NGP
+                            supportsLibretroVFS = true,
+),
                                 ),
                         ),
                     ),
@@ -1145,7 +1185,9 @@ data class GameSystem(
                             CoreID.MEDNAFEN_WSWAN,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.WS_LANDSCAPE, ControllerConfigs.WS_PORTRAIT),
+                                    0 to arrayListOf(ControllerConfigs.WS_LANDSCAPE, ControllerConfigs.WS_PORTRAIT
+                            supportsLibretroVFS = true,
+),
                                 ),
                             exposedSettings =
                                 listOf(
@@ -1187,7 +1229,9 @@ data class GameSystem(
                             CoreID.MEDNAFEN_WSWAN,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.WS_LANDSCAPE, ControllerConfigs.WS_PORTRAIT),
+                                    0 to arrayListOf(ControllerConfigs.WS_LANDSCAPE, ControllerConfigs.WS_PORTRAIT
+                            supportsLibretroVFS = true,
+),
                                 ),
                             exposedSettings =
                                 listOf(
@@ -1224,7 +1268,9 @@ data class GameSystem(
                             CoreID.DOSBOX_PURE,
                             controllerConfigs =
                                 hashMapOf(
-                                    0 to arrayListOf(ControllerConfigs.DOS_AUTO),
+                                    0 to arrayListOf(ControllerConfigs.DOS_AUTO
+                            supportsLibretroVFS = true,
+),
                                 ),
                             statesSupported = false,
                         ),

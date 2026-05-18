@@ -21,6 +21,7 @@ package com.swordfish.lemuroid.lib.storage.local
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import androidx.core.net.toUri
 import androidx.leanback.preference.LeanbackPreferenceFragment
 import com.swordfish.lemuroid.common.kotlin.extractEntryToFile
@@ -36,6 +37,7 @@ import com.swordfish.lemuroid.lib.storage.StorageFile
 import com.swordfish.lemuroid.lib.storage.StorageProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import timber.log.Timber
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipInputStream
@@ -96,20 +98,21 @@ class LocalStorageProvider(
     private fun getGameRom(game: Game): File {
         val gamePath = Uri.parse(game.fileUri).path
         val originalFile = File(gamePath)
+
+        // Non-zipped: return the original file directly — no cache needed
         if (!originalFile.isZipped() || originalFile.name == game.fileName) {
             return originalFile
         }
 
+        // Zipped: check cache first, extract only when necessary
         val cacheFile = GameCacheUtils.getCacheFileForGame(LOCAL_STORAGE_CACHE_SUBFOLDER, context, game)
         if (cacheFile.exists()) {
             return cacheFile
         }
 
-        if (originalFile.isZipped()) {
-            val stream = ZipInputStream(originalFile.inputStream())
-            stream.extractEntryToFile(game.fileName, cacheFile)
-        }
-
+        Timber.d("LocalStorageProvider: extracting zipped ROM to cache: ${game.fileName}")
+        val stream = ZipInputStream(originalFile.inputStream())
+        stream.extractEntryToFile(game.fileName, cacheFile)
         return cacheFile
     }
 
@@ -118,6 +121,36 @@ class LocalStorageProvider(
         dataFiles: List<DataFile>,
         allowVirtualFiles: Boolean,
     ): RomFiles {
+        val gamePath = Uri.parse(game.fileUri).path ?: return standardFallback(game, dataFiles)
+        val originalFile = File(gamePath)
+        val isDirectFile = !originalFile.isZipped() || originalFile.name == game.fileName
+
+        // When VFS is allowed and the file is directly accessible, open via ParcelFileDescriptor.
+        // This avoids any cache copy entirely — the core reads straight from the original file.
+        if (allowVirtualFiles && isDirectFile) {
+            return try {
+                val gameFd = ParcelFileDescriptor.open(originalFile, ParcelFileDescriptor.MODE_READ_ONLY)
+                val gameEntry = RomFiles.Virtual.Entry(game.fileName, gameFd)
+                val dataEntries = dataFiles.map { df ->
+                    RomFiles.Virtual.Entry(
+                        df.fileName,
+                        ParcelFileDescriptor.open(getDataFile(df), ParcelFileDescriptor.MODE_READ_ONLY),
+                    )
+                }
+                Timber.d("LocalStorageProvider: direct VirtualFile load — no cache copy")
+                RomFiles.Virtual(listOf(gameEntry) + dataEntries)
+            } catch (e: Exception) {
+                Timber.w(e, "LocalStorageProvider: VirtualFile open failed, falling back to Standard")
+                standardFallback(game, dataFiles)
+            }
+        }
+
+        // Standard path: non-zipped files still resolve to the real path (no cache),
+        // zipped files are extracted to cache only when needed.
+        return standardFallback(game, dataFiles)
+    }
+
+    private fun standardFallback(game: Game, dataFiles: List<DataFile>): RomFiles {
         return RomFiles.Standard(listOf(getGameRom(game)) + dataFiles.map { getDataFile(it) })
     }
 
