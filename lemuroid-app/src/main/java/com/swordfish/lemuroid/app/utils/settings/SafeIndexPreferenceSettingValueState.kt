@@ -39,6 +39,9 @@ class SafeIndexPreferenceSettingValueState(
         get() = values.indexOf(_value)
 
     override fun reset() {
-        value = values.indexOf(defaultValue)
+        // indexOf returns -1 when defaultValue is not in the list (e.g. stale prefs).
+        // Guard with maxOf so we never pass a negative index into the setter.
+        val idx = values.indexOf(defaultValue)
+        value = if (idx >= 0) idx else 0
     }
 }

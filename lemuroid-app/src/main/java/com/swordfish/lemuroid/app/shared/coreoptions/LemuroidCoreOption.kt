@@ -23,18 +23,29 @@ data class LemuroidCoreOption(
 
     fun getEntries(context: Context): List<String> {
         if (exposedSetting.values.isEmpty()) {
-            return coreOption.optionValues.map { it.capitalize() }
+            // Auto-detected: capitalise the raw value strings for display.
+            // replaceFirstChar is the non-deprecated replacement for capitalize().
+            return coreOption.optionValues.map { it.replaceFirstChar(Char::uppercaseChar) }
         }
 
-        return getCorrectExposedSettings().map { context.getString(it.titleId) }
+        val matched = getCorrectExposedSettings()
+        // If none of the declared ExposedSetting values matched the core's option list
+        // (e.g. the core changed its values in a newer build), fall back to the raw values
+        // rather than returning an empty list which would crash the UI.
+        if (matched.isEmpty()) {
+            return coreOption.optionValues.map { it.replaceFirstChar(Char::uppercaseChar) }
+        }
+        return matched.map { context.getString(it.titleId) }
     }
 
     fun getEntriesValues(): List<String> {
         if (exposedSetting.values.isEmpty()) {
-            return coreOption.optionValues.map { it }
+            return coreOption.optionValues
         }
 
-        return getCorrectExposedSettings().map { it.key }
+        val matched = getCorrectExposedSettings()
+        // Same fallback as getEntries(): prefer raw values over an empty list.
+        return if (matched.isEmpty()) coreOption.optionValues else matched.map { it.key }
     }
 
     fun getCurrentValue(): String {
@@ -49,8 +60,12 @@ data class LemuroidCoreOption(
     fun isAutoDetected(): Boolean = exposedSetting.titleId == 0
 
     private fun getCorrectExposedSettings(): List<ExposedSetting.Value> {
+        // Build a lower-cased, trimmed set of the values the core actually reports so that
+        // minor capitalisation differences between the core and the static ExposedSetting
+        // declaration don't silently empty the list and crash the UI.
+        val normalised = coreOption.optionValues.map { it.trim().lowercase() }.toSet()
         return exposedSetting.values
-            .filter { it.key in coreOption.optionValues }
+            .filter { it.key.trim().lowercase() in normalised }
     }
 
     companion object {

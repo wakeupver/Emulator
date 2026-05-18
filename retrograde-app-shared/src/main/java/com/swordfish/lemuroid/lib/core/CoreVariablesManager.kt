@@ -6,7 +6,6 @@ import com.swordfish.lemuroid.lib.library.SystemID
 import dagger.Lazy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.security.InvalidParameterException
 
 class CoreVariablesManager(private val sharedPreferences: Lazy<SharedPreferences>) {
     suspend fun getOptionsForCore(
@@ -48,12 +47,18 @@ class CoreVariablesManager(private val sharedPreferences: Lazy<SharedPreferences
             // and auto-detected ones written by the in-game menu.
             sharedPreferences.get().all
                 .filter { it.key.startsWith(prefix) }
-                .map { (key, value) ->
+                .mapNotNull { (key, value) ->
+                    // SharedPreferences.all values are nullable; skip null entries rather than
+                    // throwing an NPE, which would silently drop *all* variables for this system.
+                    if (value == null) return@mapNotNull null
                     val result =
-                        when (value!!) {
-                            is Boolean -> if (value as Boolean) "enabled" else "disabled"
-                            is String -> value as String
-                            else -> throw InvalidParameterException("Invalid setting in SharedPreferences")
+                        when (value) {
+                            is Boolean -> if (value) "enabled" else "disabled"
+                            is String -> value
+                            // Int / Long / Float can appear if another code-path wrote them;
+                            // convert to String so they're still forwarded to the core.
+                            is Int, is Long, is Float -> value.toString()
+                            else -> return@mapNotNull null // skip unknown types
                         }
                     CoreVariable(computeOriginalKey(key, systemID.dbname), result)
                 }
