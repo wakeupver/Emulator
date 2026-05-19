@@ -4,8 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
-import android.provider.MediaStore
-import android.database.Cursor
 import androidx.documentfile.provider.DocumentFile
 import androidx.leanback.preference.LeanbackPreferenceFragment
 import com.swordfish.lemuroid.common.kotlin.extractEntryToFile
@@ -138,15 +136,8 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
         val isZipped = originalDocument.isZipped() && originalDocument.name != game.fileName
 
         return when {
-            // Zipped with no extra data files: must extract — cache is unavoidable here.
             isZipped && dataFiles.isEmpty() -> getGameRomFilesZipped(game, originalDocument)
-
-            // VFS supported: open directly via ParcelFileDescriptor, zero cache copy.
             allowVirtualFiles -> getGameRomFilesVirtual(game, dataFiles)
-
-            // Standard: try to resolve a real filesystem path first.
-            // If that succeeds we avoid the cache entirely.
-            // As a last resort (path unresolvable) we copy to cache once.
             else -> getGameRomFilesStandard(game, dataFiles, originalDocument)
         }
     }
@@ -242,100 +233,30 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
 
     /**
      * Attempts to resolve a SAF content URI to a real filesystem path.
-     *
-     * Handles:
-     *  - Primary external storage (primary:<rel>)
-     *  - Removable SD cards (<volumeId>:<rel>)
-     *  - Raw file:// URIs
-     *  - MediaStore content URIs (queries _data column)
-     *  - Downloads provider URIs
-     *
-     * Returns null if the real path cannot be determined or is not readable.
-     * In that case the caller falls back to a single cache copy.
+     * Handles primary storage and removable SD cards.
+     * Returns null if the path cannot be determined or the file is not readable.
      */
     private fun resolveRealFilePath(uri: Uri): File? {
         return try {
-            // 1. Plain file:// URI — already a real path.
-            if (uri.scheme == "file") {
-                return File(uri.path ?: return null).takeIf { it.exists() && it.canRead() }
+            if (uri.scheme == "file") return File(uri.path ?: return null)
+            if (!DocumentsContract.isDocumentUri(context, uri)) return null
+
+            val docId = DocumentsContract.getDocumentId(uri)
+            val parts = docId.split(":").takeIf { it.size == 2 } ?: return null
+            val volumeId = parts[0]
+            val relativePath = parts[1]
+
+            val root = when {
+                volumeId.equals("primary", ignoreCase = true) ->
+                    Environment.getExternalStorageDirectory()
+                else ->
+                    File("/storage/$volumeId")
             }
 
-            if (uri.scheme != "content") return null
-
-            // 2. ExternalStorageProvider document URI (most common SAF case).
-            if (DocumentsContract.isDocumentUri(context, uri)) {
-                val docId = DocumentsContract.getDocumentId(uri)
-                val parts = docId.split(":")
-                if (parts.size == 2) {
-                    val volumeId = parts[0]
-                    val relativePath = parts[1]
-                    val root = when {
-                        volumeId.equals("primary", ignoreCase = true) ->
-                            Environment.getExternalStorageDirectory()
-                        volumeId.equals("home", ignoreCase = true) ->
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
-                        else ->
-                            File("/storage/$volumeId")
-                    }
-                    val resolved = File(root, relativePath)
-                    if (resolved.exists() && resolved.canRead()) {
-                        Timber.d("SAFProvider: resolved via ExternalStorageProvider: $resolved")
-                        return resolved
-                    }
-                }
-            }
-
-            // 3. MediaStore — query the _data column for the real path.
-            val mediaResolved = resolveViaMediaStore(uri)
-            if (mediaResolved != null) {
-                Timber.d("SAFProvider: resolved via MediaStore: $mediaResolved")
-                return mediaResolved
-            }
-
-            // 4. Generic content URI — try querying _data directly.
-            val dataResolved = resolveViaDataColumn(uri)
-            if (dataResolved != null) {
-                Timber.d("SAFProvider: resolved via _data column: $dataResolved")
-                return dataResolved
-            }
-
-            Timber.d("SAFProvider: could not resolve real path for $uri — will use cache fallback")
-            null
+            File(root, relativePath).takeIf { it.exists() && it.canRead() }
         } catch (e: Exception) {
-            Timber.w(e, "SAFProvider: exception resolving real path, will use cache")
+            Timber.w(e, "SAFProvider: Could not resolve real path, will use cache")
             null
-        }
-    }
-
-    /** Query MediaStore for the actual file path. */
-    private fun resolveViaMediaStore(uri: Uri): File? {
-        val projection = arrayOf(MediaStore.MediaColumns.DATA)
-        return queryDataColumn(uri, projection)
-    }
-
-    /** Query any content URI for the _data column (works for many providers). */
-    private fun resolveViaDataColumn(uri: Uri): File? {
-        val projection = arrayOf("_data")
-        return queryDataColumn(uri, projection)
-    }
-
-    private fun queryDataColumn(uri: Uri, projection: Array<String>): File? {
-        var cursor: Cursor? = null
-        return try {
-            cursor = context.contentResolver.query(uri, projection, null, null, null)
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    val index = it.getColumnIndex(projection[0])
-                    if (index >= 0) {
-                        val path = it.getString(index) ?: return null
-                        File(path).takeIf { f -> f.exists() && f.canRead() }
-                    } else null
-                } else null
-            }
-        } catch (e: Exception) {
-            null
-        } finally {
-            cursor?.close()
         }
     }
 
