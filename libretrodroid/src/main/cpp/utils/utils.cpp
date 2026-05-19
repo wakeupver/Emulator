@@ -42,7 +42,7 @@ Utils::ReadResult Utils::readFileAsBytes(const int fileDescriptor) {
 
     char* bytes = new char[size];
     fread(bytes, sizeof(char), size, file);
-    close(fileDescriptor);
+    fclose(file);  // use fclose — fdopen transfers fd ownership to FILE*, close() would violate fdsan
     return ReadResult { size, bytes };
 }
 
