@@ -15,7 +15,7 @@ data class SystemCoreConfig(
     val requiredBIOSFiles: List<String> = listOf(),
     val regionalBIOSFiles: Map<String, String> = mapOf(),
     val statesVersion: Int = 0,
-    val supportsLibretroVFS: Boolean = false,
+    val supportsLibretroVFS: Boolean = true,
     val skipDuplicateFrames: Boolean = true,
     val supportedOnlyArchitectures: Set<String>? = null,
     val supportsMicrophone: Boolean = false,

@@ -779,7 +779,6 @@ data class GameSystem(
                                     CoreVariable("pcsx_rearmed_drc", "disabled"),
                                 ),
                             rumbleSupported = true,
-                            supportsLibretroVFS = true,
                             skipDuplicateFrames = false,
                         ),
                     ),
@@ -846,7 +845,6 @@ data class GameSystem(
                                 hashMapOf(
                                     0 to arrayListOf(ControllerConfigs.PSP),
                                 ),
-                            supportsLibretroVFS = true,
                         ),
                     ),
                     uniqueExtensions = listOf(),
@@ -1289,7 +1287,6 @@ data class GameSystem(
                                     ),
                                 ),
                             statesSupported = false,
-                            supportsLibretroVFS = true,
                             supportedOnlyArchitectures = setOf("arm64-v8a"),
                         ),
                     ),

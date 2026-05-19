@@ -136,8 +136,10 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
         val isZipped = originalDocument.isZipped() && originalDocument.name != game.fileName
 
         return when {
+            // Non-zipped direct load: use virtual file descriptors — zero cache copy
+            allowVirtualFiles && !isZipped -> getGameRomFilesVirtual(game, dataFiles)
+            // Zipped: must extract first (unavoidable), result cached for reuse
             isZipped && dataFiles.isEmpty() -> getGameRomFilesZipped(game, originalDocument)
-            allowVirtualFiles -> getGameRomFilesVirtual(game, dataFiles)
             else -> getGameRomFilesStandard(game, dataFiles, originalDocument)
         }
     }
