@@ -132,6 +132,10 @@
     <string name="patch_codes_delete">Delete patch code</string>
     <string name="patch_codes_empty_title">No patch codes yet</string>
     <string name="patch_codes_empty_subtitle">Tap + to add a Game Genie, GameShark or Action Replay code.</string>
+    <string name="patch_codes_import_hint">Or tap the file icon to import a RetroArch .cht file.</string>
+    <string name="patch_codes_import_cht">Import .cht file</string>
+    <string name="patch_codes_import_success">Imported %1$d code(s), %2$d skipped.</string>
+    <string name="patch_codes_import_error">Import failed: %1$s</string>
     <string name="patch_codes_add_dialog_title">Add Patch Code</string>
     <string name="patch_codes_field_description">Description (e.g. Infinite Lives)</string>
     <string name="patch_codes_field_code">Code</string>
