@@ -125,6 +125,19 @@
     <string name="game_menu_fast_forward">Fast-Forward</string>
     <string name="game_menu_change_disk_disk">Disk %1$s</string>
     <string name="game_menu_tilt_sensor">Tilt Sensor</string>
+    <string name="game_menu_patch_codes">Patch Codes</string>
+
+    <!-- Patch Codes screen -->
+    <string name="patch_codes_add">Add patch code</string>
+    <string name="patch_codes_delete">Delete patch code</string>
+    <string name="patch_codes_empty_title">No patch codes yet</string>
+    <string name="patch_codes_empty_subtitle">Tap + to add a Game Genie, GameShark or Action Replay code.</string>
+    <string name="patch_codes_add_dialog_title">Add Patch Code</string>
+    <string name="patch_codes_field_description">Description (e.g. Infinite Lives)</string>
+    <string name="patch_codes_field_code">Code</string>
+    <string name="patch_codes_field_code_hint">Game Genie / GameShark / AR. Separate multiple codes with +</string>
+    <string name="patch_codes_add_confirm">Add</string>
+    <string name="patch_codes_error_empty_fields">Description and code must not be empty.</string>
 
     <string name="game_loading_preparing_game">Preparing game…</string>
 

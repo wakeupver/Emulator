@@ -13,6 +13,8 @@ object GameMenuContract {
     const val EXTRA_FAST_FORWARD = "EXTRA_FAST_FORWARD"
     const val EXTRA_CURRENT_TILT_CONFIG = "EXTRA_CURRENT_TILT_CONFIG"
     const val EXTRA_TILT_ALL_CONFIGS = "EXTRA_TILT_ALL_CONFIGS"
+    /** Serialized Array<PatchCode> passed into the game menu. */
+    const val EXTRA_PATCH_CODES = "EXTRA_PATCH_CODES"
 
     const val RESULT_RESET = "RESULT_RESET"
     const val RESULT_SAVE = "RESULT_SAVE"
@@ -23,4 +25,15 @@ object GameMenuContract {
     const val RESULT_ENABLE_AUDIO = "RESULT_ENABLE_AUDIO"
     const val RESULT_ENABLE_FAST_FORWARD = "RESULT_ENABLE_FAST_FORWARD"
     const val RESULT_CHANGE_TILT_CONFIG = "RESULT_CHANGE_TILT_CONFIG"
+    /**
+     * Returned when the user saves changes to patch codes.
+     * The value is a serialized Array<PatchCode> with the full (updated) list.
+     */
+    const val RESULT_PATCH_CODES = "RESULT_PATCH_CODES"
+
+    /**
+     * Returned from the TV game menu when the user taps "Patch Codes".
+     * The host activity should open the patch codes management UI.
+     */
+    const val RESULT_OPEN_PATCH_CODES = "RESULT_OPEN_PATCH_CODES"
 }

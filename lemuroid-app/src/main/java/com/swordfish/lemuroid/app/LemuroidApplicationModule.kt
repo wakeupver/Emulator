@@ -54,6 +54,7 @@ import com.swordfish.lemuroid.lib.library.LemuroidLibrary
 import com.swordfish.lemuroid.lib.library.db.RetrogradeDatabase
 import com.swordfish.lemuroid.lib.library.db.dao.GameSearchDao
 import com.swordfish.lemuroid.lib.library.db.dao.Migrations
+import com.swordfish.lemuroid.lib.library.db.dao.PatchCodeDao
 import com.swordfish.lemuroid.lib.library.metadata.GameMetadataProvider
 import com.swordfish.lemuroid.lib.migration.DesmumeMigrationHandler
 import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
@@ -136,7 +137,7 @@ abstract class LemuroidApplicationModule {
         fun retrogradeDb(app: LemuroidApplication) =
             Room.databaseBuilder(app, RetrogradeDatabase::class.java, RetrogradeDatabase.DB_NAME)
                 .addCallback(GameSearchDao.CALLBACK)
-                .addMigrations(GameSearchDao.MIGRATION, Migrations.VERSION_8_9)
+                .addMigrations(GameSearchDao.MIGRATION, Migrations.VERSION_8_9, Migrations.VERSION_9_10)
                 .fallbackToDestructiveMigration()
                 // WAL mode allows concurrent reads without blocking writers,
                 // which is essential now that scan batches run in parallel.
@@ -181,6 +182,11 @@ abstract class LemuroidApplicationModule {
             gameMetadataProvider: Lazy<GameMetadataProvider>,
             biosManager: BiosManager,
         ) = LemuroidLibrary(db, storageProviderRegistry, gameMetadataProvider, biosManager)
+
+        @Provides
+        @PerApp
+        @JvmStatic
+        fun patchCodeDao(db: RetrogradeDatabase) = db.patchCodeDao()
 
         @Provides
         @PerApp

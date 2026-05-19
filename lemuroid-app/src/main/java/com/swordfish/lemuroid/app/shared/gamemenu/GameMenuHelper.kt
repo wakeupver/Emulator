@@ -185,6 +185,16 @@ object GameMenuHelper {
                 setResultAndFinish(activity, resultIntent)
                 true
             }
+            "pref_game_section_patch_codes" -> {
+                // For TV: we cannot push a full compose navigation from here.
+                // Signal the host activity so it can launch a separate screen or dialog.
+                val resultIntent =
+                    Intent().apply {
+                        putExtra(GameMenuContract.RESULT_OPEN_PATCH_CODES, true)
+                    }
+                setResultAndFinish(activity, resultIntent)
+                true
+            }
             else -> false
         }
     }
@@ -249,4 +259,5 @@ object GameMenuHelper {
     const val SECTION_CHANGE_DISK = "pref_game_section_change_disk"
     const val SECTION_SAVE_GAME = "pref_game_section_save"
     const val SECTION_LOAD_GAME = "pref_game_section_load"
+    const val SECTION_PATCH_CODES = "pref_game_section_patch_codes"
 }

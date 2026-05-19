@@ -44,4 +44,8 @@
         android:title="@string/game_menu_settings"
         app:icon="@drawable/ic_menu_settings"/>
 
+    <Preference
+        android:key="pref_game_section_patch_codes"
+        android:title="@string/game_menu_patch_codes"/>
+
 </PreferenceScreen>

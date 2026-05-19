@@ -35,7 +35,9 @@ import com.swordfish.lemuroid.lib.game.GameLoader
 import com.swordfish.lemuroid.lib.library.ExposedSetting
 import com.swordfish.lemuroid.lib.library.GameSystem
 import com.swordfish.lemuroid.lib.library.SystemCoreConfig
+import com.swordfish.lemuroid.lib.library.db.dao.PatchCodeDao
 import com.swordfish.lemuroid.lib.library.db.entity.Game
+import com.swordfish.lemuroid.lib.cheats.PatchCodesManager
 import com.swordfish.lemuroid.lib.saves.SavesManager
 import com.swordfish.lemuroid.lib.saves.StatesManager
 import com.swordfish.lemuroid.lib.saves.StatesPreviewManager
@@ -83,6 +85,9 @@ abstract class BaseGameActivity : ImmersiveActivity() {
 
     @Inject
     lateinit var sharedPreferences: Lazy<SharedPreferences>
+
+    @Inject
+    lateinit var patchCodeDao: PatchCodeDao
 
     private lateinit var baseGameScreenViewModel: BaseGameScreenViewModel
 
@@ -155,6 +160,18 @@ abstract class BaseGameActivity : ImmersiveActivity() {
     private fun initialiseFlows() {
         launchOnState(Lifecycle.State.CREATED) {
             initializeViewModelsEffectsFlow()
+        }
+        // Apply patch codes once the emulator view is ready
+        launchOnState(Lifecycle.State.CREATED) {
+            baseGameScreenViewModel.getGameState()
+                .collect { state ->
+                    if (state is com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelRetroGameView.GameState.Ready) {
+                        val retroView = baseGameScreenViewModel.retroGameView.retroGameView
+                        if (retroView != null) {
+                            PatchCodesManager.applyFromDao(retroView, patchCodeDao, game.id)
+                        }
+                    }
+                }
         }
     }
 
@@ -424,6 +441,13 @@ abstract class BaseGameActivity : ImmersiveActivity() {
             if (data?.hasExtra(GameMenuContract.RESULT_CHANGE_TILT_CONFIG) == true) {
                 val tiltConfig = data.serializable<TiltConfiguration>(GameMenuContract.RESULT_CHANGE_TILT_CONFIG)
                 baseGameScreenViewModel.changeTiltConfiguration(tiltConfig!!)
+            }
+            // Always re-apply patch codes when the menu closes – the user may have toggled/added codes
+            val retroView = baseGameScreenViewModel.retroGameView.retroGameView
+            if (retroView != null) {
+                GlobalScope.launch {
+                    PatchCodesManager.applyFromDao(retroView, patchCodeDao, game.id)
+                }
             }
         }
     }

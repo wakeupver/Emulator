@@ -44,6 +44,8 @@ import androidx.navigation.compose.rememberNavController
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.gamemenu.coreoptions.GameMenuCoreOptionsScreen
 import com.swordfish.lemuroid.app.mobile.feature.gamemenu.coreoptions.GameMenuCoreOptionsViewModel
+import com.swordfish.lemuroid.app.mobile.feature.gamemenu.patchcodes.GameMenuPatchCodesScreen
+import com.swordfish.lemuroid.app.mobile.feature.gamemenu.patchcodes.GameMenuPatchCodesViewModel
 import com.swordfish.lemuroid.app.mobile.feature.gamemenu.states.GameMenuStatesScreen
 import com.swordfish.lemuroid.app.mobile.feature.gamemenu.states.GameMenuStatesViewModel
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.AppTheme
@@ -53,6 +55,7 @@ import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.common.kotlin.serializable
 import com.swordfish.lemuroid.lib.android.RetrogradeComponentActivity
 import com.swordfish.lemuroid.lib.library.SystemCoreConfig
+import com.swordfish.lemuroid.lib.library.db.dao.PatchCodeDao
 import com.swordfish.lemuroid.lib.library.db.entity.Game
 import com.swordfish.lemuroid.lib.saves.StatesManager
 import com.swordfish.lemuroid.lib.saves.StatesPreviewManager
@@ -69,6 +72,9 @@ class GameMenuActivity : RetrogradeComponentActivity() {
 
     @Inject
     lateinit var statesPreviewManager: StatesPreviewManager
+
+    @Inject
+    lateinit var patchCodeDao: PatchCodeDao
 
     data class GameMenuRequest(
         val coreOptions: List<LemuroidCoreOption>,
@@ -229,6 +235,17 @@ class GameMenuActivity : RetrogradeComponentActivity() {
                                 factory = GameMenuCoreOptionsViewModel.Factory(inputDeviceManager),
                             ),
                             gameMenuRequest,
+                        )
+                    }
+                    composable(GameMenuRoute.PATCH_CODES) {
+                        GameMenuPatchCodesScreen(
+                            viewModel(
+                                factory =
+                                    GameMenuPatchCodesViewModel.Factory(
+                                        gameId = gameMenuRequest.game.id,
+                                        patchCodeDao = patchCodeDao,
+                                    ),
+                            ),
                         )
                     }
                 }

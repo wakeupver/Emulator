@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -153,6 +154,18 @@ fun GameMenuHomeScreen(
                 onClick = { navController.navigateToRoute(GameMenuRoute.OPTIONS) },
             )
         }
+
+        // Patch Codes (cheat codes) – always visible so users can manage codes any time
+        LemuroidSettingsMenuLink(
+            title = { Text(text = stringResource(id = R.string.game_menu_patch_codes)) },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Code,
+                    contentDescription = stringResource(id = R.string.game_menu_patch_codes),
+                )
+            },
+            onClick = { navController.navigateToRoute(GameMenuRoute.PATCH_CODES) },
+        )
 
         if (gameMenuRequest.allTiltConfigurations.isNotEmpty()) {
             val tiltConfigurationEntries =
