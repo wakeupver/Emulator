@@ -94,7 +94,7 @@ class GameLoader(
                     runCatching {
                         // Always use standard file path — libretroVFS disabled intentionally
                         // so games load directly without virtual file descriptor overhead.
-                        val useVFS = false
+                        val useVFS = true
                         val dataFiles = retrogradeDatabase.dataFileDao().selectDataFilesForGame(game.id)
                         lemuroidLibrary.getGameFiles(game, dataFiles, useVFS)
                     }.getOrElse { throw it }
