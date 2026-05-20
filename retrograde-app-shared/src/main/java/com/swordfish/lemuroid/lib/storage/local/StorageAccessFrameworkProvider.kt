@@ -8,7 +8,6 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.leanback.preference.LeanbackPreferenceFragment
 import com.swordfish.lemuroid.common.kotlin.extractEntryToFile
 import com.swordfish.lemuroid.common.kotlin.isZipped
-import com.swordfish.lemuroid.common.kotlin.writeToFile
 import com.swordfish.lemuroid.lib.R
 import com.swordfish.lemuroid.lib.library.db.entity.DataFile
 import com.swordfish.lemuroid.lib.library.db.entity.Game
@@ -55,8 +54,6 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
 
     /**
      * Traverses directories in parallel using channelFlow + recursive coroutine launches.
-     * Each discovered sub-directory is listed concurrently, drastically reducing wall-clock
-     * time for libraries with many sub-folders (e.g. one folder per system).
      */
     private fun traverseDirectoryEntries(rootUri: Uri): Flow<List<BaseStorageFile>> =
         channelFlow {
@@ -106,10 +103,7 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
                     resultDirectories.add(documentId)
                 } else {
                     val documentUri =
-                        DocumentsContract.buildDocumentUriUsingTree(
-                            treeUri,
-                            documentId,
-                        )
+                        DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
                     resultFiles.add(
                         BaseStorageFile(
                             name = documentName,
@@ -135,84 +129,89 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
 
         val isZipped = originalDocument.isZipped() && originalDocument.name != game.fileName
 
-        // Always load via standard files — libretroVFS is disabled.
-        // For zipped files we must extract first; otherwise resolve the real path or cache it.
-        return when {
-            isZipped && dataFiles.isEmpty() -> getGameRomFilesZipped(game, originalDocument)
-            else -> getGameRomFilesStandard(game, dataFiles, originalDocument)
+        return if (isZipped) {
+            // ZIP files must be extracted — cache is unavoidable for the unpacked ROM.
+            // The extracted file is cached by name+size so re-launching is instant.
+            getGameRomFilesZipped(game, originalDocument)
+        } else {
+            // Non-ZIP: load directly, zero cache copy.
+            // Strategy (fastest path first):
+            //   1. Real filesystem path (works for primary + SD card via SAF)
+            //   2. /proc/self/fd/N trick — open a ParcelFileDescriptor and hand libretrodroid
+            //      a stable kernel path.  No bytes are copied, the PFD is kept alive inside
+            //      RomFiles.Standard.fds for the duration of the game session.
+            getGameRomFilesDirect(game, dataFiles)
         }
     }
 
-    private fun getGameRomFilesStandard(
-        game: Game,
-        dataFiles: List<DataFile>,
-        originalDocument: DocumentFile,
-    ): RomFiles {
-        val gameEntry = getGameRomStandard(game, originalDocument)
-        val dataEntries = dataFiles.map { getDataFileStandard(game, it) }
-        return RomFiles.Standard(listOf(gameEntry) + dataEntries)
-    }
+    // ── ZIP path ────────────────────────────────────────────────────────────────
 
     private fun getGameRomFilesZipped(
         game: Game,
         originalDocument: DocumentFile,
     ): RomFiles {
         val cacheFile = GameCacheUtils.getCacheFileForGame(SAF_CACHE_SUBFOLDER, context, game)
-        if (cacheFile.exists()) {
-            return RomFiles.Standard(listOf(cacheFile))
+        if (!cacheFile.exists()) {
+            val stream = ZipInputStream(context.contentResolver.openInputStream(originalDocument.uri))
+            stream.extractEntryToFile(game.fileName, cacheFile)
         }
-
-        val stream =
-            ZipInputStream(
-                context.contentResolver.openInputStream(originalDocument.uri),
-            )
-        stream.extractEntryToFile(game.fileName, cacheFile)
-        return RomFiles.Standard(listOf(cacheFile))
+        return RomFiles.Standard(files = listOf(cacheFile))
     }
 
-    private fun getDataFileStandard(
-        game: Game,
-        dataFile: DataFile,
-    ): File {
-        // Prefer the real filesystem path — skips the expensive cache-copy step entirely.
-        val realFile = resolveRealFilePath(Uri.parse(dataFile.fileUri))
-        if (realFile != null) return realFile
-
-        val cacheFile =
-            GameCacheUtils.getDataFileForGame(
-                SAF_CACHE_SUBFOLDER,
-                context,
-                game,
-                dataFile,
-            )
-
-        if (cacheFile.exists()) return cacheFile
-
-        val stream = context.contentResolver.openInputStream(Uri.parse(dataFile.fileUri))!!
-        stream.writeToFile(cacheFile)
-        return cacheFile
-    }
-
-    private fun getGameRomStandard(
-        game: Game,
-        originalDocument: DocumentFile,
-    ): File {
-        // Prefer the real filesystem path — skips the expensive cache-copy step entirely.
-        val realFile = resolveRealFilePath(originalDocument.uri)
-        if (realFile != null) return realFile
-
-        val cacheFile = GameCacheUtils.getCacheFileForGame(SAF_CACHE_SUBFOLDER, context, game)
-        if (cacheFile.exists()) return cacheFile
-
-        val stream = context.contentResolver.openInputStream(originalDocument.uri)!!
-        stream.writeToFile(cacheFile)
-        return cacheFile
-    }
+    // ── Direct (no-copy) path ────────────────────────────────────────────────
 
     /**
-     * Attempts to resolve a SAF content URI to a real filesystem path.
-     * Handles primary storage and removable SD cards.
-     * Returns null if the path cannot be determined or the file is not readable.
+     * Loads all ROM files without copying a single byte to the cache.
+     *
+     * Mirrors the technique used by PPSSPP in ContentUri.java → openContentUri():
+     *
+     *   pfd = contentResolver.openFileDescriptor(uri, "r")
+     *   fd  = pfd.detachFd()   ← "Take ownership of the fd" (PPSSPP comment)
+     *
+     * After [ParcelFileDescriptor.detachFd] the Java PFD wrapper is invalidated, but the
+     * underlying kernel file-descriptor remains open and owned by our process.
+     * There is no GC risk — the int fd is just a number; nothing will close it until we
+     * explicitly call [ParcelFileDescriptor.adoptFd].close() in onCleared().
+     *
+     * The path "/proc/self/fd/{fd}" is a stable symlink the kernel maintains for every
+     * open fd in the process.  libretrodroid opens this path exactly like a real file.
+     *
+     * For URIs that resolve to a real filesystem path (primary storage, SD card) we skip
+     * the fd entirely — zero overhead, purest possible load.
+     */
+    private fun getGameRomFilesDirect(game: Game, dataFiles: List<DataFile>): RomFiles {
+        val detachedFds = mutableListOf<Int>()
+
+        fun resolveUri(uri: Uri): File {
+            // Fast path: real filesystem path — no fd needed at all
+            val real = resolveRealFilePath(uri)
+            if (real != null) return real
+
+            // PPSSPP path: detachFd() → /proc/self/fd/N
+            // pfd is immediately invalidated after detachFd; the kernel fd lives on.
+            val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+                ?: error("Cannot open file descriptor for $uri")
+            val rawFd = pfd.detachFd()   // ← "Take ownership of the fd" — identical to PPSSPP
+            detachedFds += rawFd
+            Timber.d("SAFProvider: detached fd=$rawFd for $uri → /proc/self/fd/$rawFd")
+            return File("/proc/self/fd/$rawFd")
+        }
+
+        val gameFile      = resolveUri(Uri.parse(game.fileUri))
+        val dataFileItems = dataFiles.map { resolveUri(Uri.parse(it.fileUri)) }
+
+        return RomFiles.Standard(
+            files       = listOf(gameFile) + dataFileItems,
+            detachedFds = detachedFds,
+        )
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Resolves a SAF content URI to a real [File] path without opening the file.
+     * Handles the primary volume and removable SD cards.
+     * Returns null when the real path cannot be determined (caller should fall back to FD).
      */
     private fun resolveRealFilePath(uri: Uri): File? {
         return try {
@@ -221,8 +220,7 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
 
             val docId = DocumentsContract.getDocumentId(uri)
             val parts = docId.split(":").takeIf { it.size == 2 } ?: return null
-            val volumeId = parts[0]
-            val relativePath = parts[1]
+            val (volumeId, relativePath) = parts
 
             val root = when {
                 volumeId.equals("primary", ignoreCase = true) ->
@@ -233,7 +231,7 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
 
             File(root, relativePath).takeIf { it.exists() && it.canRead() }
         } catch (e: Exception) {
-            Timber.w(e, "SAFProvider: Could not resolve real path, will use cache")
+            Timber.w(e, "SAFProvider: Could not resolve real path for $uri, will use /proc/self/fd")
             null
         }
     }

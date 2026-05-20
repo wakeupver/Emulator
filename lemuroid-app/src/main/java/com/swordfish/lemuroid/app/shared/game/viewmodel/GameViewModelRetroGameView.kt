@@ -78,6 +78,30 @@ class GameViewModelRetroGameView(
         return gameState.debounce(200)
     }
 
+    /**
+     * Closes raw Linux file-descriptor integers that were detached via
+     * [android.os.ParcelFileDescriptor.detachFd] during the PPSSPP-style direct load.
+     *
+     * [ParcelFileDescriptor.adoptFd] re-wraps the raw int into a PFD (taking ownership),
+     * then [ParcelFileDescriptor.close] tells the kernel to release the fd.
+     * This is the canonical Android API for closing a detached fd without reflection.
+     *
+     * Call this from [BaseGameScreenViewModel.onCleared] when the game session ends.
+     */
+    fun closeOpenFds() {
+        val romFiles = (gameState.value as? GameState.Loaded)?.gameData?.gameFiles
+        (romFiles as? com.swordfish.lemuroid.lib.storage.RomFiles.Standard)
+            ?.detachedFds
+            ?.forEach { rawFd ->
+                runCatching {
+                    android.os.ParcelFileDescriptor.adoptFd(rawFd).close()
+                    Timber.d("GameViewModelRetroGameView: closed detached fd=$rawFd")
+                }.onFailure {
+                    Timber.w(it, "GameViewModelRetroGameView: failed to close fd=$rawFd")
+                }
+            }
+    }
+
     suspend fun initialize(
         applicationContext: Context,
         game: Game,
