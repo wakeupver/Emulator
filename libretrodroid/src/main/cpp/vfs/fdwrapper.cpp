@@ -16,6 +16,17 @@
  */
 
 #include "fdwrapper.h"
+#include "../log.h"
+
+// FDWrapper: always dup() the incoming fd so we own an untagged copy.
+// This prevents Android fdsan from aborting when we close() a fd that was
+// originally owned by a ParcelFileDescriptor / unique_fd on the Java side.
+// The caller retains (or releases) the original fd independently.
+libretrodroid::FDWrapper::FDWrapper(int rawFd) : fd(::dup(rawFd)) {
+    if (fd < 0) {
+        LOGE("FDWrapper: dup() failed for fd=%d (errno=%d)", rawFd, errno);
+    }
+}
 
 libretrodroid::FDWrapper::~FDWrapper() {
     if (fd > 0) {

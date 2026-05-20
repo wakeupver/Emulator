@@ -356,8 +356,12 @@ class GLRetroView(
     }
 
     private fun loadGameFromVirtualFiles(virtualFiles: List<VirtualFile>) {
+        // We do NOT call detachFd() here. Native code (FDWrapper) dup()s the raw fd to obtain
+        // an untagged copy, so the original ParcelFileDescriptor retains ownership and is closed
+        // normally by Java when the VirtualFile list goes out of scope. This prevents the fdsan
+        // SIGABRT that occurs when close() is called on a fd still tagged by a unique_fd.
         val detachedVirtualFiles = virtualFiles
-            .map { DetachedVirtualFile(it.virtualPath, it.fileDescriptor.detachFd()) }
+            .map { DetachedVirtualFile(it.virtualPath, it.fileDescriptor.fd) }
         LibretroDroid.loadGameFromVirtualFiles(detachedVirtualFiles)
     }
 

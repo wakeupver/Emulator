@@ -19,6 +19,7 @@
 #define LIBRETRODROID_FDWRAPPER_H
 
 #include <unistd.h>
+#include <cerrno>
 
 namespace libretrodroid {
 
