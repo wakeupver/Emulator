@@ -33,7 +33,7 @@ public:
 
     int getFD();
 
-    FDWrapper(int fd) : fd(fd) { }
+    FDWrapper(int fd);
     ~FDWrapper();
 
 private:
