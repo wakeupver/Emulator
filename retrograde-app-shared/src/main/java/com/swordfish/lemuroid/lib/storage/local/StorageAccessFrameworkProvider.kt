@@ -135,10 +135,9 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
 
         val isZipped = originalDocument.isZipped() && originalDocument.name != game.fileName
 
+        // Always load via standard files — libretroVFS is disabled.
+        // For zipped files we must extract first; otherwise resolve the real path or cache it.
         return when {
-            // Non-zipped direct load: use virtual file descriptors — zero cache copy
-            allowVirtualFiles && !isZipped -> getGameRomFilesVirtual(game, dataFiles)
-            // Zipped: must extract first (unavoidable), result cached for reuse
             isZipped && dataFiles.isEmpty() -> getGameRomFilesZipped(game, originalDocument)
             else -> getGameRomFilesStandard(game, dataFiles, originalDocument)
         }
@@ -171,22 +170,6 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
         return RomFiles.Standard(listOf(cacheFile))
     }
 
-    private fun getGameRomFilesVirtual(
-        game: Game,
-        dataFiles: List<DataFile>,
-    ): RomFiles {
-        val gameEntry = getGameRomVirtual(game)
-        val dataEntries = dataFiles.map { getDataFileVirtual(it) }
-        return RomFiles.Virtual(listOf(gameEntry) + dataEntries)
-    }
-
-    private fun getDataFileVirtual(dataFile: DataFile): RomFiles.Virtual.Entry {
-        return RomFiles.Virtual.Entry(
-            "$VIRTUAL_FILE_PATH/${dataFile.fileName}",
-            context.contentResolver.openFileDescriptor(Uri.parse(dataFile.fileUri), "r")!!,
-        )
-    }
-
     private fun getDataFileStandard(
         game: Game,
         dataFile: DataFile,
@@ -208,13 +191,6 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
         val stream = context.contentResolver.openInputStream(Uri.parse(dataFile.fileUri))!!
         stream.writeToFile(cacheFile)
         return cacheFile
-    }
-
-    private fun getGameRomVirtual(game: Game): RomFiles.Virtual.Entry {
-        return RomFiles.Virtual.Entry(
-            "$VIRTUAL_FILE_PATH/${game.fileName}",
-            context.contentResolver.openFileDescriptor(Uri.parse(game.fileUri), "r")!!,
-        )
     }
 
     private fun getGameRomStandard(
@@ -268,6 +244,5 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
 
     companion object {
         const val SAF_CACHE_SUBFOLDER = "storage-framework-games"
-        const val VIRTUAL_FILE_PATH = "/virtual/file/path"
     }
 }
