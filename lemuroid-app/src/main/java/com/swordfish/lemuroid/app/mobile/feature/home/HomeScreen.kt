@@ -78,6 +78,7 @@ fun HomeScreen(
         },
         { permissionsLauncher.launch(Manifest.permission.RECORD_AUDIO) },
         { viewModel.changeLocalStorageFolder(context) },
+        { viewModel.selectStorageLocation(context) },
     ) // TODO COMPOSE We need to understand what's going to happen here.
 }
 
@@ -91,6 +92,7 @@ private fun HomeScreen(
     onEnableNotificationsClicked: () -> Unit,
     onEnableMicrophoneClicked: () -> Unit,
     onSetDirectoryClicked: () -> Unit,
+    onSelectStorageLocationClicked: () -> Unit,
 ) {
     Column(
         modifier =
@@ -105,6 +107,14 @@ private fun HomeScreen(
                 messageId = R.string.home_notification_message,
                 actionId = R.string.home_notification_action,
                 onAction = onEnableNotificationsClicked,
+            )
+        }
+        AnimatedVisibility(state.showStorageLocationCard) {
+            HomeNotification(
+                titleId = R.string.home_storage_location_title,
+                messageId = R.string.home_storage_location_message,
+                actionId = R.string.home_storage_location_action,
+                onAction = onSelectStorageLocationClicked,
             )
         }
         AnimatedVisibility(state.showNoGamesCard) {

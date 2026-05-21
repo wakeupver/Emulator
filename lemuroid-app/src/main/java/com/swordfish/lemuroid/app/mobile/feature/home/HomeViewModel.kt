@@ -35,7 +35,6 @@ class HomeViewModel(
     appContext: Context,
     retrogradeDb: RetrogradeDatabase,
     private val coresSelection: CoresSelection,
-    @Suppress("UnusedPrivateMember")
     private val directoriesManager: com.swordfish.lemuroid.lib.storage.DirectoriesManager,
 ) : ViewModel() {
     companion object {
@@ -63,10 +62,12 @@ class HomeViewModel(
         val showNoMicrophonePermissionCard: Boolean = false,
         val showNoGamesCard: Boolean = false,
         val showDesmumeDeprecatedCard: Boolean = false,
+        val showStorageLocationCard: Boolean = false,
     )
 
     private val microphonePermissionEnabledState = MutableStateFlow(true)
     private val notificationsPermissionEnabledState = MutableStateFlow(true)
+    private val storageLocationSetState = MutableStateFlow(directoriesManager.isBaseDirSet())
     private val uiStates = MutableStateFlow(UIState())
 
     fun getViewStates(): Flow<UIState> {
@@ -77,9 +78,14 @@ class HomeViewModel(
         StorageFrameworkPickerLauncher.pickFolder(context)
     }
 
+    fun selectStorageLocation(context: Context) {
+        com.swordfish.lemuroid.app.shared.settings.StorageBaseDirPicker.launch(context)
+    }
+
     fun updatePermissions(context: Context) {
         notificationsPermissionEnabledState.value = isNotificationsPermissionGranted(context)
         microphonePermissionEnabledState.value = isMicrophonePermissionGranted(context)
+        storageLocationSetState.value = directoriesManager.isBaseDirSet()
     }
 
     private fun isNotificationsPermissionGranted(context: Context): Boolean {
@@ -114,6 +120,7 @@ class HomeViewModel(
         notificationsPermissionEnabled: Boolean,
         showMicrophoneCard: Boolean,
         showDesmumeWarning: Boolean,
+        storageLocationSet: Boolean,
     ): UIState {
         val noGames = recentGames.isEmpty() && favoritesGames.isEmpty() && discoveryGames.isEmpty()
 
@@ -126,6 +133,7 @@ class HomeViewModel(
             showNoMicrophonePermissionCard = showMicrophoneCard,
             showNoGamesCard = noGames,
             showDesmumeDeprecatedCard = showDesmumeWarning,
+            showStorageLocationCard = !storageLocationSet,
         )
     }
 
@@ -140,6 +148,7 @@ class HomeViewModel(
                     notificationsPermissionEnabledState,
                     microphoneNotification(retrogradeDb),
                     desmumeWarningNotification(),
+                    storageLocationSetState,
                     ::buildViewState,
                 )
 

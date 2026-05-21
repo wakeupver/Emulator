@@ -260,4 +260,9 @@
     <string name="storage_picker_need_manage_permission">This app needs full storage access to use this folder on Android 11+. Please grant the permission in the next screen.</string>
     <string name="storage_picker_permission_denied_fallback">Permission denied. Using the default storage location.</string>
 
+    <!-- Home screen storage location suggestion card -->
+    <string name="home_storage_location_title">Select base directory</string>
+    <string name="home_storage_location_message">Choose a custom folder for saves, states, and ROMs. Cores always stay in internal storage.</string>
+    <string name="home_storage_location_action">Select Directory</string>
+
 </resources>
