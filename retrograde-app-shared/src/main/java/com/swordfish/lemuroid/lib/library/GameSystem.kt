@@ -736,7 +736,7 @@ data class GameSystem(
                     R.string.game_system_abbr_psx,
                     listOf(
                         SystemCoreConfig(
-                            CoreID.PCSX_REARMED,
+                            CoreID.SWANSTATION,
                             controllerConfigs =
                                 hashMapOf(
                                     0 to
@@ -763,20 +763,29 @@ data class GameSystem(
                             exposedSettings =
                                 listOf(
                                     ExposedSetting(
-                                        "pcsx_rearmed_frameskip",
-                                        R.string.setting_pcsx_rearmed_frameskip,
+                                        "swanstation_GPU_Renderer",
+                                        R.string.setting_swanstation_gpu_renderer,
+                                        arrayListOf(
+                                            ExposedSetting.Value("Auto", R.string.value_swanstation_gpu_renderer_auto),
+                                            ExposedSetting.Value("Software", R.string.value_swanstation_gpu_renderer_software),
+                                            ExposedSetting.Value("OpenGL", R.string.value_swanstation_gpu_renderer_opengl),
+                                            ExposedSetting.Value("Vulkan", R.string.value_swanstation_gpu_renderer_vulkan),
+                                        ),
                                     ),
                                 ),
                             exposedAdvancedSettings =
                                 listOf(
                                     ExposedSetting(
-                                        "pcsx_rearmed_drc",
-                                        R.string.setting_pcsx_rearmed_drc,
+                                        "swanstation_CPU_Overclock",
+                                        R.string.setting_swanstation_cpu_overclock,
                                     ),
                                 ),
                             defaultSettings =
                                 listOf(
-                                    CoreVariable("pcsx_rearmed_drc", "disabled"),
+                                    CoreVariable("swanstation_GPU_Renderer", "OpenGL"),
+                                    CoreVariable("swanstation_CPU_Overclock", "100"),
+                                    CoreVariable("swanstation_Display_CropMode", "Overscan"),
+                                    CoreVariable("swanstation_CDROM_RegionCheck", "false"),
                                 ),
                             rumbleSupported = true,
                             skipDuplicateFrames = false,
