@@ -116,6 +116,11 @@ abstract class LemuroidApplicationModule {
     @ContributesAndroidInjector
     abstract fun storageFrameworkPickerLauncher(): StorageFrameworkPickerLauncher
 
+    @ContributesAndroidInjector
+    abstract fun storageBaseDirPicker(): com.swordfish.lemuroid.app.shared.settings.StorageBaseDirPicker
+
+    @PerActivity
+
     @PerActivity
     @ContributesAndroidInjector(modules = [GamePadBindingActivity.Module::class])
     abstract fun gamepadBindingActivity(): GamePadBindingActivity

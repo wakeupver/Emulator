@@ -18,7 +18,12 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -93,6 +98,9 @@
 
         <activity
             android:name="com.swordfish.lemuroid.app.shared.settings.StorageFrameworkPickerLauncher"
+            android:theme="@style/LemuroidMaterialTheme.Invisible" />
+        <activity
+            android:name="com.swordfish.lemuroid.app.shared.settings.StorageBaseDirPicker"
             android:theme="@style/LemuroidMaterialTheme.Invisible" />
 
         <!-- Leanback activities -->

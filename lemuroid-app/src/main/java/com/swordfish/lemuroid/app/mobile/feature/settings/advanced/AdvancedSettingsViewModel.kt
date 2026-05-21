@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swordfish.lemuroid.app.shared.settings.SettingsInteractor
+import com.swordfish.lemuroid.lib.storage.DirectoriesManager
 import com.swordfish.lemuroid.lib.storage.cache.CacheCleaner
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -13,16 +14,18 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 
 class AdvancedSettingsViewModel(
-    appContext: Context,
+    private val appContext: Context,
     private val settingsInteractor: SettingsInteractor,
+    @Suppress("UnusedPrivateMember")
+    private val directoriesManager: DirectoriesManager,
 ) : ViewModel() {
     class Factory(
         private val appContext: Context,
         private val settingsInteractor: SettingsInteractor,
+        private val directoriesManager: DirectoriesManager,
     ) : ViewModelProvider.Factory {
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return AdvancedSettingsViewModel(appContext, settingsInteractor) as T
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            AdvancedSettingsViewModel(appContext, settingsInteractor, directoriesManager) as T
     }
 
     data class CacheState(
@@ -34,34 +37,16 @@ class AdvancedSettingsViewModel(
     data class State(val cache: CacheState)
 
     val uiState =
-        initializeState(appContext)
-            .stateIn(viewModelScope, started = SharingStarted.Lazily, null)
+        buildState(appContext)
+            .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    private fun initializeState(appContext: Context): Flow<State?> =
-        flow {
-            val supportedCacheValues = CacheCleaner.getSupportedCacheLimits()
-
-            val default = CacheCleaner.getDefaultCacheLimit().toString()
-
-            val displayNames =
-                supportedCacheValues
-                    .map { getSizeLabel(appContext, it) }
-
-            val values =
-                supportedCacheValues
-                    .map { it.toString() }
-
-            emit(State(CacheState(default, values, displayNames)))
-        }
-
-    private fun getSizeLabel(
-        appContext: Context,
-        size: Long,
-    ): String {
-        return Formatter.formatShortFileSize(appContext, size)
+    private fun buildState(ctx: Context): Flow<State> = flow {
+        val supported = CacheCleaner.getSupportedCacheLimits()
+        val default = CacheCleaner.getDefaultCacheLimit().toString()
+        val displayNames = supported.map { Formatter.formatShortFileSize(ctx, it) }
+        val values = supported.map { it.toString() }
+        emit(State(cache = CacheState(default, values, displayNames)))
     }
 
-    fun resetAllSettings() {
-        settingsInteractor.resetAllSettings()
-    }
+    fun resetAllSettings() = settingsInteractor.resetAllSettings()
 }

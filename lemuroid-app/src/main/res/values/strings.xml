@@ -252,4 +252,12 @@
     <string name="tilt_configuration_buttons_l1_r1">L1 - R1</string>
     <string name="tilt_configuration_buttons_l2_r2">L2 - R2</string>
 
+    <!-- Storage base dir picker -->
+    <string name="settings_category_storage_paths">Storage</string>
+    <string name="settings_title_storage_location">Storage location</string>
+    <string name="storage_picker_unsupported_location">This location is not supported. Please pick a folder on internal or SD card storage.</string>
+    <string name="storage_picker_not_writable">The selected folder is not writable. Please choose a different location.</string>
+    <string name="storage_picker_need_manage_permission">This app needs full storage access to use this folder on Android 11+. Please grant the permission in the next screen.</string>
+    <string name="storage_picker_permission_denied_fallback">Permission denied. Using the default storage location.</string>
+
 </resources>

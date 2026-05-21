@@ -35,6 +35,8 @@ class HomeViewModel(
     appContext: Context,
     retrogradeDb: RetrogradeDatabase,
     private val coresSelection: CoresSelection,
+    @Suppress("UnusedPrivateMember")
+    private val directoriesManager: com.swordfish.lemuroid.lib.storage.DirectoriesManager,
 ) : ViewModel() {
     companion object {
         const val CAROUSEL_MAX_ITEMS = 10
@@ -45,9 +47,10 @@ class HomeViewModel(
         val appContext: Context,
         val retrogradeDb: RetrogradeDatabase,
         val coresSelection: CoresSelection,
+        val directoriesManager: com.swordfish.lemuroid.lib.storage.DirectoriesManager,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return HomeViewModel(appContext, retrogradeDb, coresSelection) as T
+            return HomeViewModel(appContext, retrogradeDb, coresSelection, directoriesManager) as T
         }
     }
 

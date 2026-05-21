@@ -102,6 +102,9 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
     @Inject
     lateinit var inputDeviceManager: InputDeviceManager
 
+    @Inject
+    lateinit var directoriesManager: DirectoriesManager
+
     private val reviewManager = ReviewManager()
 
     private val mainViewModel: MainViewModel by viewModels {
@@ -198,6 +201,7 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                                             applicationContext,
                                             retrogradeDb,
                                             coresSelection,
+                                            directoriesManager,
                                         ),
                                 ),
                             onGameClick = onGameClick,
@@ -290,9 +294,11 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                                         AdvancedSettingsViewModel.Factory(
                                             applicationContext,
                                             settingsInteractor,
+                                            directoriesManager,
                                         ),
                                 ),
                             navController = navController,
+                            directoriesManager = directoriesManager,
                         )
                     }
                     composable(MainRoute.SETTINGS_BIOS) {
@@ -398,6 +404,10 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                         data,
                     )
                 }
+            }
+            com.swordfish.lemuroid.app.shared.settings.StorageBaseDirPicker.REQUEST_CODE_PICK_DIR -> {
+                // Result already processed inside StorageBaseDirPicker itself.
+                // Nothing extra needed here.
             }
         }
     }
