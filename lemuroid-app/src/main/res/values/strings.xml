@@ -259,6 +259,7 @@
     <string name="storage_picker_not_writable">The selected folder is not writable. Please choose a different location.</string>
     <string name="storage_picker_need_manage_permission">This app needs full storage access to use this folder on Android 11+. Please grant the permission in the next screen.</string>
     <string name="storage_picker_permission_denied_fallback">Permission denied. Using the default storage location.</string>
+    <string name="storage_picker_permission_denied_continue">Storage permission denied. You can still pick a folder, but access may be limited to app-specific directories.</string>
 
     <!-- Home screen storage location suggestion card -->
     <string name="home_storage_location_title">Select base directory</string>

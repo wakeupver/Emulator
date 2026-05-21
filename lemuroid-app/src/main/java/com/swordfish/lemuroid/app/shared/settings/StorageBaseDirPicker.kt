@@ -19,18 +19,16 @@ import java.io.File
 import javax.inject.Inject
 
 /**
- * Transparent Activity that launches the SAF directory picker for selecting
- * the app-wide base storage directory (saves, states, system, roms).
+ * Transparent Activity for selecting the app-wide base storage directory.
  *
  * Cores always remain in internal storage (/data/data/<pkg>/files/cores).
  *
- * Flow:
- *  1. Launch SAF tree picker
- *  2. Validate URI authority (must be external storage provider)
- *  3. Resolve to real FS path
- *  4. On Android 11+: if path is not app-specific, request MANAGE_EXTERNAL_STORAGE if needed
- *  5. Validate directory is writable
- *  6. Save path and trigger library index
+ * Flow (new order):
+ *  1. On Android 11+: request MANAGE_EXTERNAL_STORAGE FIRST if not yet granted
+ *  2. Launch SAF tree picker
+ *  3. Validate URI authority → resolve to real FS path
+ *  4. Validate directory is writable
+ *  5. Save path and trigger library index
  */
 class StorageBaseDirPicker : RetrogradeActivity() {
 
@@ -39,56 +37,107 @@ class StorageBaseDirPicker : RetrogradeActivity() {
 
     private var mandatory = false
 
-    // Pending path waiting for MANAGE_EXTERNAL_STORAGE grant
-    private var pendingPath: String? = null
-    private var pendingUri: Uri? = null
+    // True while we are waiting for the user to return from the
+    // MANAGE_EXTERNAL_STORAGE system settings screen.
     private var waitingForManagePermission = false
+
+    // True if we have already gone through the permission step this session
+    // (so we don't loop back to it on a second onResume).
+    private var permissionStepDone = false
+
+    // -------------------------------------------------------------------------
+    // Lifecycle
+    // -------------------------------------------------------------------------
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mandatory = intent.getBooleanExtra(EXTRA_MANDATORY, false)
 
         if (savedInstanceState == null) {
-            launchPicker()
+            // Fresh start — step 1: permission first
+            requestManagePermissionIfNeeded()
         } else {
-            pendingPath = savedInstanceState.getString(STATE_PENDING_PATH)
-            pendingUri = savedInstanceState.getParcelable(STATE_PENDING_URI)
             waitingForManagePermission = savedInstanceState.getBoolean(STATE_WAITING_MANAGE, false)
+            permissionStepDone = savedInstanceState.getBoolean(STATE_PERMISSION_DONE, false)
         }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putString(STATE_PENDING_PATH, pendingPath)
-        outState.putParcelable(STATE_PENDING_URI, pendingUri)
         outState.putBoolean(STATE_WAITING_MANAGE, waitingForManagePermission)
+        outState.putBoolean(STATE_PERMISSION_DONE, permissionStepDone)
     }
 
     override fun onResume() {
         super.onResume()
-        // Returning from MANAGE_EXTERNAL_STORAGE settings screen
+
         if (waitingForManagePermission) {
+            // Returning from MANAGE_EXTERNAL_STORAGE system settings
             waitingForManagePermission = false
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
-                // Permission granted — complete the save
-                val path = pendingPath
-                val uri = pendingUri
-                if (path != null) {
-                    commitPath(path, uri)
-                } else {
-                    finishWithCancel()
-                }
-            } else {
-                // User didn't grant — fall back to default
+            permissionStepDone = true
+
+            val granted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                && Environment.isExternalStorageManager()
+
+            if (!granted) {
+                // User skipped/denied — still let them pick (app-specific dirs will work)
                 Toast.makeText(
                     this,
-                    R.string.storage_picker_permission_denied_fallback,
+                    R.string.storage_picker_permission_denied_continue,
                     Toast.LENGTH_LONG,
                 ).show()
-                finishWithCancel()
             }
+            // Step 2: now open the file picker
+            launchPicker()
+        }
+        // else: returning from the SAF picker (handled in onActivityResult)
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 1 — permission
+    // -------------------------------------------------------------------------
+
+    private fun requestManagePermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+            && !Environment.isExternalStorageManager()
+        ) {
+            // Not yet granted — send user to system settings first
+            waitingForManagePermission = true
+            Toast.makeText(
+                this,
+                R.string.storage_picker_need_manage_permission,
+                Toast.LENGTH_LONG,
+            ).show()
+
+            try {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:$packageName"),
+                    ),
+                )
+            } catch (e: Exception) {
+                // Fallback to the general "All files" settings screen
+                try {
+                    startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                } catch (e2: Exception) {
+                    Timber.e(e2, "StorageBaseDirPicker: cannot open MANAGE_EXTERNAL_STORAGE settings")
+                    // Can't open settings — skip straight to the picker
+                    waitingForManagePermission = false
+                    permissionStepDone = true
+                    launchPicker()
+                }
+            }
+        } else {
+            // Android ≤10 or permission already granted — go straight to picker
+            permissionStepDone = true
+            launchPicker()
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Step 2 — file picker
+    // -------------------------------------------------------------------------
 
     private fun launchPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
@@ -121,7 +170,7 @@ class StorageBaseDirPicker : RetrogradeActivity() {
 
         val uri = data?.data ?: run { handleCancel(); return }
 
-        // Step 1: Resolve URI to real FS path
+        // Resolve URI → real FS path
         val realPath = SafUriHelper.treeUriToPath(uri)
         if (realPath == null) {
             Timber.w("StorageBaseDirPicker: cannot resolve URI to path: $uri")
@@ -130,47 +179,19 @@ class StorageBaseDirPicker : RetrogradeActivity() {
                 R.string.storage_picker_unsupported_location,
                 Toast.LENGTH_LONG,
             ).show()
-            // Re-launch so user can pick a valid location
             launchPicker()
             return
         }
 
-        // Step 2: On Android 11+, check if we need MANAGE_EXTERNAL_STORAGE
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-            && !SafUriHelper.isAppSpecificPath(this, realPath)
-            && !Environment.isExternalStorageManager()
-        ) {
-            // Store pending state and request the permission
-            pendingPath = realPath
-            pendingUri = uri
-            waitingForManagePermission = true
-            persistUriPermission(uri)
-
-            Toast.makeText(
-                this,
-                R.string.storage_picker_need_manage_permission,
-                Toast.LENGTH_LONG,
-            ).show()
-
-            try {
-                val manageIntent = Intent(
-                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                    Uri.parse("package:$packageName"),
-                )
-                startActivity(manageIntent)
-            } catch (e: Exception) {
-                // Fallback to general manage storage settings
-                startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-            }
-            return
-        }
-
         persistUriPermission(uri)
-        commitPath(realPath, uri)
+        commitPath(realPath)
     }
 
-    /** Final step: validate writable, save, trigger sync. */
-    private fun commitPath(path: String, uri: Uri?) {
+    // -------------------------------------------------------------------------
+    // Step 3 — commit
+    // -------------------------------------------------------------------------
+
+    private fun commitPath(path: String) {
         val dir = File(path)
         if (!dir.exists()) dir.mkdirs()
 
@@ -181,9 +202,6 @@ class StorageBaseDirPicker : RetrogradeActivity() {
                 R.string.storage_picker_not_writable,
                 Toast.LENGTH_LONG,
             ).show()
-            // Re-launch picker
-            pendingPath = null
-            pendingUri = null
             launchPicker()
             return
         }
@@ -196,10 +214,12 @@ class StorageBaseDirPicker : RetrogradeActivity() {
         finish()
     }
 
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
     private fun handleCancel() {
         if (mandatory) {
-            // On first launch, mandatory=false so this branch won't normally be hit,
-            // but guard against it anyway.
             launchPicker()
         } else {
             finishWithCancel()
@@ -221,13 +241,16 @@ class StorageBaseDirPicker : RetrogradeActivity() {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Companion
+    // -------------------------------------------------------------------------
+
     companion object {
         const val REQUEST_CODE_PICK_DIR = 2001
         const val EXTRA_MANDATORY = "extra_mandatory"
 
-        private const val STATE_PENDING_PATH = "pending_path"
-        private const val STATE_PENDING_URI = "pending_uri"
         private const val STATE_WAITING_MANAGE = "waiting_manage"
+        private const val STATE_PERMISSION_DONE = "permission_done"
 
         fun launch(context: Context) {
             context.startActivity(Intent(context, StorageBaseDirPicker::class.java))
