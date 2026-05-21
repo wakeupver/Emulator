@@ -156,6 +156,24 @@ bool Environment::environment_handle_set_hw_render(struct retro_hw_render_callba
     hw_render_callback->get_current_framebuffer = callback_get_current_framebuffer;
     hw_render_callback->get_proc_address = &eglGetProcAddress;
 
+    // LibretroDroid always provides an OpenGL ES context via EGL.
+    // Some cores (e.g. SwanStation) request a desktop OpenGL Core context
+    // (RETRO_HW_CONTEXT_OPENGL_CORE) and then use the accepted context_type
+    // to decide whether to compile desktop GLSL (#version 330 core) or
+    // GLES GLSL (#version 300 es).  Since we can only supply an ES context,
+    // override the context_type here so those cores detect GLES correctly.
+    switch (hw_render_callback->context_type) {
+        case RETRO_HW_CONTEXT_OPENGL:
+        case RETRO_HW_CONTEXT_OPENGL_CORE:
+            // Core requested desktop OpenGL — remap to GLES3 so shaders
+            // use #version 300 es instead of #version 330 core.
+            hw_render_callback->context_type = RETRO_HW_CONTEXT_OPENGLES3;
+            break;
+        default:
+            // OPENGLES2, OPENGLES3, OPENGLES_VERSION — leave unchanged.
+            break;
+    }
+
     return true;
 }
 
