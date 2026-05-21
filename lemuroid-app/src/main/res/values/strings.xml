@@ -37,6 +37,11 @@
     <string name="settings_description_hd_mode">Apply post-processing upscaling filter</string>
     <string name="settings_description_hd_quality">Adjust the quality of HD mode</string>
 
+    <string name="settings_title_aspect_ratio">Aspect ratio</string>
+    <string name="settings_description_aspect_ratio">How the game image fills the screen</string>
+    <string name="aspect_ratio_core_provided">Core Provided</string>
+    <string name="aspect_ratio_stretch">Fill / Stretch</string>
+
     <string name="settings_title_immersive_mode">Immersive mode</string>
     <string name="settings_description_immersive_mode">Dynamically colors the background based on game visuals</string>
 

@@ -120,6 +120,7 @@ class GameViewModelRetroGameView(
         val enableRumble = settingsManager.enableRumble()
         val directLoad = settingsManager.allowDirectGameLoad()
         val enableImmersiveMode = settingsManager.enableImmersiveMode()
+        val aspectRatioMode = settingsManager.aspectRatioMode()
 
         val hasMicrophonePermission =
             ContextCompat.checkSelfPermission(
@@ -166,6 +167,7 @@ class GameViewModelRetroGameView(
                                 enableRumble,
                                 enableMicrophone,
                                 enableImmersiveMode,
+                                aspectRatioMode,
                             )
                         GameState.Loaded(
                             gameData = loadingState.gameData,
@@ -236,6 +238,7 @@ class GameViewModelRetroGameView(
         requestRumble: Boolean,
         requestMicrophone: Boolean,
         enableImmersiveMode: Boolean,
+        aspectRatioMode: String,
     ): GLRetroViewData {
         return GLRetroViewData(appContext).apply {
             coreFilePath = gameData.coreLibrary
@@ -267,6 +270,7 @@ class GameViewModelRetroGameView(
             skipDuplicateFrames = systemCoreConfig.skipDuplicateFrames
             enableMicrophone = requestMicrophone
             immersiveMode = buildImmersiveModeConfiguration(enableImmersiveMode)
+            stretchToFill = (aspectRatioMode == "stretch")
         }
     }
 

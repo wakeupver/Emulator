@@ -323,6 +323,11 @@ class GLRetroView(
         override fun onSurfaceChanged(gl: GL10, width: Int, height: Int) = catchExceptions {
             Thread.currentThread().priority = Thread.MAX_PRIORITY
             LibretroDroid.onSurfaceChanged(width, height)
+            if (data.stretchToFill && width > 0 && height > 0) {
+                LibretroDroid.setAspectRatioOverride(width.toFloat() / height.toFloat())
+            } else {
+                LibretroDroid.setAspectRatioOverride(-1.0f)
+            }
         }
 
 

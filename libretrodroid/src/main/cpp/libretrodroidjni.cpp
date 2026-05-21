@@ -598,6 +598,14 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_refreshAsp
     LibretroDroid::getInstance().refreshAspectRatio();
 }
 
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setAspectRatioOverride(
+    JNIEnv* env,
+    jclass obj,
+    jfloat aspectRatio
+) {
+    LibretroDroid::getInstance().setAspectRatioOverride(aspectRatio);
+}
+
 }
 
 }

@@ -179,6 +179,17 @@ private fun GeneralSettings() {
             title = { Text(text = stringResource(id = R.string.display_filter)) },
             items = stringListResource(R.array.pref_key_shader_filter_display_names),
         )
+        LemuroidSettingsList(
+            state =
+                indexPreferenceState(
+                    R.string.pref_key_aspect_ratio,
+                    "core_provided",
+                    stringListResource(R.array.pref_key_aspect_ratio_values).toList(),
+                ),
+            title = { Text(text = stringResource(id = R.string.settings_title_aspect_ratio)) },
+            subtitle = { Text(text = stringResource(id = R.string.settings_description_aspect_ratio)) },
+            items = stringListResource(R.array.pref_key_aspect_ratio_display_names),
+        )
     }
 }
 

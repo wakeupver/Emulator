@@ -28,6 +28,7 @@
 
     <string name="pref_key_shader_filter" translatable="false">shader_filter_0</string>
     <string name="pref_key_hd_mode" translatable="false">hd_mode</string>
+    <string name="pref_key_aspect_ratio" translatable="false">aspect_ratio</string>
 
     <string-array translatable="false" name="pref_key_haptic_feedback_mode_values">
         <item>none</item>
@@ -55,5 +56,15 @@
         <item>@string/shader_filter_names_smooth</item>
         <item>@string/shader_filter_names_crt</item>
         <item>@string/shader_filter_names_lcd</item>
+    </string-array>
+
+    <string-array translatable="false" name="pref_key_aspect_ratio_values">
+        <item>core_provided</item>
+        <item>stretch</item>
+    </string-array>
+
+    <string-array translatable="false" name="pref_key_aspect_ratio_display_names">
+        <item>@string/aspect_ratio_core_provided</item>
+        <item>@string/aspect_ratio_stretch</item>
     </string-array>
 </resources>

@@ -138,6 +138,8 @@ public class LibretroDroid {
 
     public static native void refreshAspectRatio();
 
+    public static native void setAspectRatioOverride(float aspectRatio);
+
     public static native Controller[][] getControllers();
     public static native void setControllerType(int port, int type);
 }

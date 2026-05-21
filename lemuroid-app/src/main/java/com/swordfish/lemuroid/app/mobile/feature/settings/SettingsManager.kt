@@ -56,6 +56,8 @@ class SettingsManager(private val context: Context, sharedPreferences: Lazy<Shar
 
     suspend fun allowDirectGameLoad() = booleanPreference(R.string.pref_key_allow_direct_game_load, true)
 
+    suspend fun aspectRatioMode() = stringPreference(R.string.pref_key_aspect_ratio, "core_provided")
+
     private suspend fun booleanPreference(
         keyId: Int,
         default: Boolean,
