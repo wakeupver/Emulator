@@ -29,6 +29,21 @@ android {
         }
     }
 
+    defaultConfig {
+        ndk {
+            abiFilters += setOf("arm64-v8a")
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a")
+            isUniversalApk = false
+        }
+    }
+
     packagingOptions {
         jniLibs {
             // Stripping created some issues with some libretro cores such as ppsspp
