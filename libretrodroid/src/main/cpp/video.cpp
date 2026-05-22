@@ -141,18 +141,6 @@ void Video::renderFrame() {
     if (skipDuplicateFrames && !isDirty) return;
     isDirty = false;
 
-    // HW-accelerated cores (e.g. SwanStation) use custom VAOs and do not
-    // unbind them after rendering.  In GLES 3.0 a non-zero VAO being bound
-    // when glVertexAttribPointer is called with a client-side pointer is
-    // undefined behaviour; on Adreno 630 it produces a black screen.
-    // Reset to the default VAO (0) so our own vertex setup below works
-    // correctly regardless of what the core left bound.
-    glBindVertexArray(0);
-
-    // Also restore depth-mask in case the core left it disabled
-    // (e.g. SwanStation sets glDepthMask(GL_FALSE) during display).
-    glDepthMask(GL_TRUE);
-
     glDisable(GL_DEPTH_TEST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
