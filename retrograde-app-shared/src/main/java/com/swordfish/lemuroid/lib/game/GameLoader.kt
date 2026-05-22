@@ -129,6 +129,20 @@ class GameLoader(
                 val systemDirectory = directoriesManager.getSystemDirectory()
                 val savesDirectory = directoriesManager.getSavesDirectory()
 
+                // SwanStation stores its GL shader cache in <systemDir>/swanstation/.
+                // If these files were compiled under a desktop-GL context (before the
+                // GLES context-type fix), they will silently produce a black screen when
+                // loaded. We delete them once here so SwanStation recompiles fresh shaders
+                // with the correct #version 300 es header on the next launch.
+                if (systemCoreConfig.coreID == CoreID.SWANSTATION) {
+                    val swanShaderDir = File(systemDirectory, "swanstation")
+                    if (swanShaderDir.exists()) {
+                        File(swanShaderDir, "gl_programs.idx").delete()
+                        File(swanShaderDir, "gl_programs.bin").delete()
+                        Timber.i("GameLoader: cleared SwanStation GL shader cache in $swanShaderDir")
+                    }
+                }
+
                 emit(
                     LoadingState.Ready(
                         GameData(
