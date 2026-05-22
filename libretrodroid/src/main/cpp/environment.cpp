@@ -22,7 +22,6 @@
 #include <string>
 #include <cstring>
 #include <cmath>
-#include <cstdio>
 #include <EGL/egl.h>
 #include <unordered_map>
 
@@ -156,62 +155,6 @@ bool Environment::environment_handle_set_hw_render(struct retro_hw_render_callba
     hw_context_reset = hw_render_callback->context_reset;
     hw_render_callback->get_current_framebuffer = callback_get_current_framebuffer;
     hw_render_callback->get_proc_address = &eglGetProcAddress;
-
-    // LibretroDroid always provides an OpenGL ES context via EGL.
-    // Some cores (e.g. SwanStation) request a desktop OpenGL Core context
-    // (RETRO_HW_CONTEXT_OPENGL_CORE) and then use the accepted context_type
-    // to decide whether to compile desktop GLSL (#version 330 core) or
-    // GLES GLSL (#version 300 es).  Since we can only supply an ES context,
-    // override the context_type here so those cores detect GLES correctly.
-    switch (hw_render_callback->context_type) {
-        case RETRO_HW_CONTEXT_OPENGL:
-        case RETRO_HW_CONTEXT_OPENGL_CORE: {
-            // Core requested desktop OpenGL — remap to GLES3 so shaders
-            // use #version 300 es instead of #version 330 core.
-            hw_render_callback->context_type = RETRO_HW_CONTEXT_OPENGLES3;
-
-            // Stale shader cache problem:
-            // When context_type is forced from OPENGL_CORE to OPENGLES3 the
-            // core's shader cache may contain desktop-GL program binaries from
-            // a previous session.  Loading them via glProgramBinary in a GLES
-            // context causes the Adreno driver to crash with SIGSEGV.
-            //
-            // Fix: on the very first launch after this override, delete the
-            // cache files so the core recompiles fresh GLES binaries.  A
-            // sentinel file (outside the per-core subdirectory) is created
-            // immediately so subsequent launches skip the deletion and benefit
-            // from the cached GLES binaries.
-            //
-            // Sentinel is placed directly in systemDirectory (which exists by
-            // the time SET_HW_RENDER is called because the core has already
-            // queried GET_SYSTEM_DIRECTORY for BIOS look-up).
-            if (!systemDirectory.empty()) {
-                const std::string sentinel = systemDirectory + "/gles_cache_ready";
-                FILE* sf = fopen(sentinel.c_str(), "r");
-                if (!sf) {
-                    // First run in GLES mode — purge any desktop-GL cache files.
-                    // We don't know the core name, so remove the two well-known
-                    // SwanStation files; other cores will simply find no cache
-                    // and recompile, which is always safe.
-                    const std::string idx = systemDirectory + "/swanstation/gl_programs.idx";
-                    const std::string bin = systemDirectory + "/swanstation/gl_programs.bin";
-                    remove(idx.c_str());
-                    remove(bin.c_str());
-                    LOGD("Purged stale desktop-GL shader cache (GLES migration)");
-
-                    // Create sentinel so next launch skips the purge.
-                    FILE* marker = fopen(sentinel.c_str(), "w");
-                    if (marker) fclose(marker);
-                } else {
-                    fclose(sf);
-                }
-            }
-            break;
-        }
-        default:
-            // OPENGLES2, OPENGLES3, OPENGLES_VERSION — leave unchanged.
-            break;
-    }
 
     return true;
 }
