@@ -149,6 +149,23 @@ void Video::renderFrame() {
     // correctly regardless of what the core left bound.
     glBindVertexArray(0);
 
+    // GL_ARRAY_BUFFER is GLOBAL context state — it is NOT part of VAO state.
+    // SwanStation (and other HW cores) leave their own VBO bound after retro_run().
+    // When glVertexAttribPointer is subsequently called with a client-side pointer
+    // (e.g. vertices.data()), GLES 3.0 interprets that pointer as a byte OFFSET
+    // into the currently-bound VBO — not as a memory address.  This causes our
+    // quad vertices to be read from garbage data, triangles are drawn off-screen,
+    // and the result is a black screen.
+    //
+    // Immersive mode happened to work because renderToFinalOutput() always called
+    // glBindBuffer(GL_ARRAY_BUFFER, 0) before the shader chain ran.  Without
+    // immersive mode that reset never happened.
+    //
+    // Fix: unconditionally reset GL_ARRAY_BUFFER to 0 here so that every
+    // subsequent glVertexAttribPointer call is treated as a client-side pointer
+    // regardless of whether immersive mode is enabled.
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     // Also restore depth-mask in case the core left it disabled
     // (e.g. SwanStation sets glDepthMask(GL_FALSE) during display).
     glDepthMask(GL_TRUE);
