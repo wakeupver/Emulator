@@ -15,7 +15,7 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <EGL/egl.h>
 #include <cstdlib>
 #include <string>
@@ -138,43 +138,47 @@ void Video::updateProgram() {
 }
 
 void Video::renderFrame() {
-    if (skipDuplicateFrames && !isDirty) return;
-    isDirty = false;
+    // skipDuplicateFrames optimization: skip rendering if the core hasn't produced a
+    // new frame. BUT: GLSurfaceView always calls eglSwapBuffers() after onDrawFrame(),
+    // so returning early leaves the back buffer undefined → the next presented frame
+    // can be black or garbage (visible flicker). Fix: allow early return only before
+    // the very first frame; once we have a valid frame, always re-render it so the
+    // back buffer is always well-defined after every swap.
+    if (skipDuplicateFrames && !isDirty.load(std::memory_order_acquire)) {
+        if (!hasRenderedOnce.load(std::memory_order_relaxed)) return;
+        // Fall through and re-render the last valid frame from the existing texture.
+    } else {
+        isDirty.store(false, std::memory_order_release);
+        hasRenderedOnce.store(true, std::memory_order_relaxed);
+    }
 
-    // HW-accelerated cores (e.g. SwanStation) use custom VAOs and do not
-    // unbind them after rendering.  In GLES 3.0 a non-zero VAO being bound
-    // when glVertexAttribPointer is called with a client-side pointer is
-    // undefined behaviour; on Adreno 630 it produces a black screen.
-    // Reset to the default VAO (0) so our own vertex setup below works
-    // correctly regardless of what the core left bound.
+    // Reset any core-owned VAO left bound after retro_run().
+    //
+    // GLES3 spec: glVertexAttribPointer with a raw (client-side) pointer is ONLY
+    // valid when VAO 0 (the default) is bound.  With any non-zero VAO the driver
+    // treats the pointer as a VBO byte-offset; VBO=0 → memcpy(dst,NULL,0x60) → SIGSEGV.
+    //
+    // SwanStation leaves m_display_vao (non-zero) bound after Render().
+    //
+    // We use VAO 0 (not a private non-zero VAO) because shader attribute locations
+    // (gvPositionHandle, gvCoordinateHandle) are resolved at runtime via
+    // glGetAttribLocation and vary per shader/pass. A non-zero VAO bakes in indices
+    // at creation time — if those indices don't match the runtime locations, position
+    // and texcoord arrays are swapped → game renders only in a corner of the screen.
     glBindVertexArray(0);
 
-    // GL_ARRAY_BUFFER is GLOBAL context state — it is NOT part of VAO state.
-    // SwanStation (and other HW cores) leave their own VBO bound after retro_run().
-    // When glVertexAttribPointer is subsequently called with a client-side pointer
-    // (e.g. vertices.data()), GLES 3.0 interprets that pointer as a byte OFFSET
-    // into the currently-bound VBO — not as a memory address.  This causes our
-    // quad vertices to be read from garbage data, triangles are drawn off-screen,
-    // and the result is a black screen.
-    //
-    // Immersive mode happened to work because renderToFinalOutput() always called
-    // glBindBuffer(GL_ARRAY_BUFFER, 0) before the shader chain ran.  Without
-    // immersive mode that reset never happened.
-    //
-    // Fix: unconditionally reset GL_ARRAY_BUFFER to 0 here so that every
-    // subsequent glVertexAttribPointer call is treated as a client-side pointer
-    // regardless of whether immersive mode is enabled.
+    // Ensure no VBO from the core's pass is still bound: with a VBO active,
+    // glVertexAttribPointer treats our raw pointer as a VBO byte offset.
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // Also restore depth-mask in case the core left it disabled
-    // (e.g. SwanStation sets glDepthMask(GL_FALSE) during display).
-    glDepthMask(GL_TRUE);
 
     glDisable(GL_DEPTH_TEST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // Clear color only — the default EGL surface on Android typically has no depth
+    // buffer, so clearing GL_DEPTH_BUFFER_BIT here is a no-op that wastes a state
+    // transition on some drivers and can trigger unnecessary tile-flush on TBDR GPUs.
+    glClear(GL_COLOR_BUFFER_BIT);
 
     if (immersiveModeEnabled) {
         immersiveMode.renderBackground(
@@ -240,6 +244,10 @@ void Video::renderFrame() {
 
         glUseProgram(0);
     }
+
+    // RetroArch end-of-frame pattern: glBindVertexArray(0) after all rendering.
+    // Ensures no VAO leaks into the next retro_run() call — matches gl3.c line ~4514.
+    glBindVertexArray(0);
 }
 
 float Video::getScreenDensity() {
@@ -257,7 +265,16 @@ float Video::getTextureHeight() {
 void Video::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
     if (data != nullptr) {
         renderer->onNewFrame(data, width, height, pitch);
-        isDirty = true;
+
+        // For HW-rendered cores, data = RETRO_HW_FRAME_BUFFER_VALID ((void*)-1).
+        // width/height is still the current display resolution even for HW frames.
+        // Crop the texture UV so we sample only the rendered sub-region of the
+        // (max-size) FBO — prevents the game from appearing tiny in the corner.
+        if (fboAllocatedWidth > 0 && width > 0 && height > 0) {
+            updateTextureUVCropForHWFrame(width, height);
+        }
+
+        isDirty.store(true, std::memory_order_release);
     }
 }
 
@@ -272,6 +289,25 @@ void Video::updateViewportSize(Rect viewportRect) {
 void Video::updateRendererSize(unsigned int width, unsigned int height) {
     LOGD("Updating renderer size: %d x %d", width, height);
     renderer->updateRenderedResolution(width, height);
+}
+
+void Video::updateTextureUVCropForHWFrame(unsigned renderedWidth, unsigned renderedHeight) {
+    if (fboAllocatedWidth == 0 || fboAllocatedHeight == 0) return;
+    if (renderedWidth == 0 || renderedHeight == 0) return;
+
+    float uMax = static_cast<float>(renderedWidth)  / static_cast<float>(fboAllocatedWidth);
+    float vMax = static_cast<float>(renderedHeight) / static_cast<float>(fboAllocatedHeight);
+
+    // Clamp to [0,1] — should always be ≤1 but guard against geometry misreport
+    uMax = std::min(uMax, 1.0F);
+    vMax = std::min(vMax, 1.0F);
+
+    LOGD("HW frame UV crop: rendered=%ux%u  fbo=%ux%u  uvMax=(%.4f, %.4f)",
+         renderedWidth, renderedHeight,
+         fboAllocatedWidth, fboAllocatedHeight,
+         uMax, vMax);
+
+    videoLayout.updateTextureUVCrop(uMax, vMax);
 }
 
 void Video::updateRotation(float rotation) {
@@ -305,6 +341,9 @@ Video::Video(
     glViewport(0, 0, videoLayout.getScreenWidth(), videoLayout.getScreenHeight());
 
     glUseProgram(0);
+
+    fboAllocatedWidth  = renderingOptions.hardwareAccelerated ? renderingOptions.width  : 0;
+    fboAllocatedHeight = renderingOptions.hardwareAccelerated ? renderingOptions.height : 0;
 
     initializeRenderer(renderingOptions);
 }

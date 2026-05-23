@@ -36,6 +36,12 @@ public:
 
     void updateRotation(float rotation);
 
+    // For HW-rendered cores the FBO is allocated at max_width × max_height but
+    // the core may only render into a smaller sub-region (e.g. 320×240 inside
+    // a 1024×512 FBO). Call this with (renderedW/fboW, renderedH/fboH) so the
+    // texture coordinates sample only the live region of the texture.
+    void updateTextureUVCrop(float uMax, float vMax);
+
     std::array<float, 12>& getForegroundVertices() { return foregroundVertices; }
     std::array<float, 12>& getBackgroundVertices() { return backgroundVertices; }
     std::array<float, 12>& getFramebufferVertices() { return framebufferVertices; }
@@ -77,6 +83,11 @@ private:
         +1.0F,
         +1.0F,
     };
+
+    // UV crop factors: (1,1) = full texture, (<1,<1) = sub-region of FBO.
+    // Updated by Video when the rendered frame dimensions are known.
+    float uvCropU = 1.0F;
+    float uvCropV = 1.0F;
 
     std::array<float, 12> textureCoordinates {
         0.0F,

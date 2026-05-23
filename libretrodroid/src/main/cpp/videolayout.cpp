@@ -182,6 +182,21 @@ void VideoLayout::updateRotation(float rotation) {
     updateBuffers();
 }
 
+void VideoLayout::updateTextureUVCrop(float uMax, float vMax) {
+    uvCropU = uMax;
+    uvCropV = vMax;
+    // Recompute texture coordinates to sample only [0..uMax] x [0..vMax] of the FBO texture.
+    // Layout matches the 6-vertex strip used elsewhere (TL, BL, TR, TR, BL, BR).
+    textureCoordinates[0]  = 0.0F;  textureCoordinates[1]  = 0.0F;
+    textureCoordinates[2]  = 0.0F;  textureCoordinates[3]  = vMax;
+    textureCoordinates[4]  = uMax;  textureCoordinates[5]  = 0.0F;
+    textureCoordinates[6]  = uMax;  textureCoordinates[7]  = 0.0F;
+    textureCoordinates[8]  = 0.0F;  textureCoordinates[9]  = vMax;
+    textureCoordinates[10] = uMax;  textureCoordinates[11] = vMax;
+
+    LOGD("UV crop updated: uMax=%.4f  vMax=%.4f", uMax, vMax);
+}
+
 std::pair<float, float> VideoLayout::getRelativePosition(float touchX, float touchY) {
     float xMin = std::numeric_limits<float>::max();
     float xMax = std::numeric_limits<float>::lowest();

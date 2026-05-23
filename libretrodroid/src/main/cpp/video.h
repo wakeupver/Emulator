@@ -18,9 +18,10 @@
 #ifndef LIBRETRODROID_VIDEO_H
 #define LIBRETRODROID_VIDEO_H
 
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <optional>
 #include <array>
+#include <atomic>
 
 #include "renderers/renderer.h"
 #include "shadermanager.h"
@@ -69,6 +70,10 @@ public:
     void updateAspectRatio(float aspectRatio);
     void updateScreenSize(unsigned screenWidth, unsigned screenHeight);
     void updateViewportSize(Rect viewportRect);
+
+    // Called after each HW frame; crops UV so only the rendered sub-region
+    // of the (max-size) FBO is sampled by the compositing quad.
+    void updateTextureUVCropForHWFrame(unsigned renderedWidth, unsigned renderedHeight);
     void updateRendererSize(unsigned width, unsigned height);
     void updateRotation(float rotation);
     void updateShaderType(ShaderManager::Config shaderConfig);
@@ -100,7 +105,13 @@ private:
     };
     std::optional<ShaderManager::Config> loadedShaderType = std::nullopt;
 
-    bool isDirty = false;
+    // Use atomic to prevent data race: onNewFrame() (retro thread) writes isDirty,
+    // renderFrame() (GL thread) reads/writes isDirty concurrently.
+    std::atomic<bool> isDirty{false};
+    // Track whether we have ever successfully rendered a frame so we can re-render
+    // the last valid frame instead of returning early (which leaves the back buffer
+    // undefined and causes flickering when eglSwapBuffers is called by GLSurfaceView).
+    std::atomic<bool> hasRenderedOnce{false};
     bool skipDuplicateFrames = false;
 
     std::vector<ShaderChainEntry> shadersChain;
@@ -110,6 +121,12 @@ private:
     VideoLayout videoLayout;
 
     Renderer* renderer;
+
+    // FBO allocation size (may be larger than the actual rendered region for HW cores).
+    // Used to compute UV crop: uvMax = renderedSize / fboSize.
+    unsigned fboAllocatedWidth  = 0;
+    unsigned fboAllocatedHeight = 0;
+
 };
 
 }
