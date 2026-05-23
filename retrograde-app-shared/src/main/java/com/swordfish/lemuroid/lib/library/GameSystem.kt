@@ -786,6 +786,15 @@ data class GameSystem(
                                     CoreVariable("swanstation_CPU_Overclock", "100"),
                                     CoreVariable("swanstation_Display_CropMode", "Overscan"),
                                     CoreVariable("swanstation_CDROM_RegionCheck", "false"),
+                                    // Pixel-precise rendering: Nearest filter prevents bilinear
+                                    // blur that causes the image to look imprecise/soft.
+                                    CoreVariable("swanstation_GPU_TextureFilter", "Nearest"),
+                                    // Keep 4:3 aspect ratio consistent during 24-bit color
+                                    // (FMV) frames so the viewport does not shift.
+                                    CoreVariable("swanstation_Display_Force4_3For24Bit", "true"),
+                                    // Disable line detection heuristic that can shift the
+                                    // active display region by a few pixels each frame.
+                                    CoreVariable("swanstation_GPU_PGXPEnable", "false"),
                                 ),
                             rumbleSupported = true,
                             skipDuplicateFrames = false,
