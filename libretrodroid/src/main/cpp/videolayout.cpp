@@ -182,21 +182,6 @@ void VideoLayout::updateRotation(float rotation) {
     updateBuffers();
 }
 
-void VideoLayout::updateTextureUVCrop(float uMax, float vMax) {
-    uvCropU = uMax;
-    uvCropV = vMax;
-    // Recompute texture coordinates to sample only [0..uMax] x [0..vMax] of the FBO texture.
-    // Layout matches the 6-vertex strip used elsewhere (TL, BL, TR, TR, BL, BR).
-    textureCoordinates[0]  = 0.0F;  textureCoordinates[1]  = 0.0F;
-    textureCoordinates[2]  = 0.0F;  textureCoordinates[3]  = vMax;
-    textureCoordinates[4]  = uMax;  textureCoordinates[5]  = 0.0F;
-    textureCoordinates[6]  = uMax;  textureCoordinates[7]  = 0.0F;
-    textureCoordinates[8]  = 0.0F;  textureCoordinates[9]  = vMax;
-    textureCoordinates[10] = uMax;  textureCoordinates[11] = vMax;
-
-    LOGD("UV crop updated: uMax=%.4f  vMax=%.4f", uMax, vMax);
-}
-
 std::pair<float, float> VideoLayout::getRelativePosition(float touchX, float touchY) {
     float xMin = std::numeric_limits<float>::max();
     float xMax = std::numeric_limits<float>::lowest();
@@ -230,10 +215,7 @@ void VideoLayout::updateRelativeForegroundBounds() {
     float yMin = std::numeric_limits<float>::max();
     float yMax = std::numeric_limits<float>::lowest();
 
-    // Iterate over ALL vertices (start at 0, not 2) so the first vertex (top-left)
-    // is included in the bounds.  Skipping it caused the immersive-mode background
-    // blur region to be slightly misaligned when the image was rotated or offset.
-    for (size_t i = 0; i < foregroundVertices.size(); i += 2) {
+    for (size_t i = 2; i < foregroundVertices.size(); i += 2) {
         xMin = std::min(xMin, foregroundVertices[i]);
         xMax = std::max(xMax, foregroundVertices[i]);
         yMin = std::min(yMin, (bottomLeftOrigin ? 1.0F : -1.0F) * foregroundVertices[i + 1]);

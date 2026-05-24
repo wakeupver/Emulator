@@ -138,24 +138,13 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
             LaunchedEffect(fullPos, viewPos) {
                 val gameView = viewModel.retroGameView.retroGameViewFlow()
                 if (fullPos == null || viewPos == null) return@LaunchedEffect
-
-                // Round positions to integer pixel boundaries to eliminate sub-pixel imprecision.
-                // boundsInRoot() can return fractional float values that cause the rendered game
-                // image to be offset by less than one pixel, resulting in blurry/misaligned output.
-                val fullW = fullPos.width.coerceAtLeast(1f)
-                val fullH = fullPos.height.coerceAtLeast(1f)
-
-                val left = kotlin.math.round(viewPos.left - fullPos.left) / fullW
-                val top = kotlin.math.round(viewPos.top - fullPos.top) / fullH
-                val right = kotlin.math.round(viewPos.right - fullPos.left) / fullW
-                val bottom = kotlin.math.round(viewPos.bottom - fullPos.top) / fullH
-
-                val viewport = RectF(
-                    left.coerceIn(0f, 1f),
-                    top.coerceIn(0f, 1f),
-                    right.coerceIn(0f, 1f),
-                    bottom.coerceIn(0f, 1f),
-                )
+                val viewport =
+                    RectF(
+                        (viewPos.left - fullPos.left) / fullPos.width,
+                        (viewPos.top - fullPos.top) / fullPos.height,
+                        (viewPos.right - fullPos.left) / fullPos.width,
+                        (viewPos.bottom - fullPos.top) / fullPos.height,
+                    )
                 gameView.viewport = viewport
             }
 
