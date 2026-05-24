@@ -153,6 +153,16 @@ void Video::renderFrame() {
     // (e.g. SwanStation sets glDepthMask(GL_FALSE) during display).
     glDepthMask(GL_TRUE);
 
+    // Unbind any VBO the core left on GL_ARRAY_BUFFER.
+    // glBindVertexArray(0) resets VAO state but does NOT unbind GL_ARRAY_BUFFER —
+    // that is a global binding. In GLES3, if a VBO is bound when
+    // glVertexAttribPointer is called with a raw pointer, the driver interprets
+    // the pointer as a byte-offset into that VBO (→ null deref → black screen).
+    // ImmersiveMode::renderToFinalOutput() happens to call glBindBuffer(ARRAY_BUFFER,0)
+    // which is why immersive mode works without this fix. Non-immersive mode does
+    // not have that cleanup, so the SwanStation VBO leaks into our vertex setup.
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     glDisable(GL_DEPTH_TEST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
