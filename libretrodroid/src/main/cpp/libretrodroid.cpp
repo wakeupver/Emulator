@@ -548,23 +548,28 @@ void LibretroDroid::handleVideoRefresh(
 ) {
     if (video) {
         // For HW-rendered cores (e.g. SwanStation), data == RETRO_HW_FRAME_BUFFER_VALID.
-        // SwanStation::Render() flow:
-        //   1. get_current_framebuffer() → gets our FBO ID (already bound to our texture)
-        //   2. glBindFramebuffer(DRAW, our_fbo) + glClear
-        //   3. glViewport(left, top, display_w, display_h) + renders into FBO
-        //   4. video_refresh(RETRO_HW_FRAME_BUFFER_VALID, display_w, display_h, 0)
+        // SwanStation calls Render() which:
+        //   1. Gets our FBO via get_current_framebuffer()
+        //   2. Computes display_width × display_height for the current frame
+        //   3. Calls CalculateDrawRect(display_width, display_height) to get the
+        //      letterboxed (left, top, w, h) region inside the FBO
+        //   4. Renders content into that sub-region via glViewport(left, top, w, h)
+        //   5. Reports the FULL display_width × display_height to video_refresh
         //
-        // CRITICAL: SwanStation fetches our FBO ID at step 1 BEFORE video_refresh fires.
-        // If we call updateRendererSize() here (inside video_refresh callback), it sets
-        // isDirty=true → onNewFrame() calls initializeBuffers() → DELETES the FBO that
-        // SwanStation already rendered into THIS frame and MAY still reference next frame
-        // via its internal state. The driver then accesses a deleted GL object → SIGSEGV.
+        // Therefore our FBO MUST be exactly display_width × display_height.
+        // If FBO is too small → content rendered outside → clipped on right/bottom.
+        // If FBO is too large → SwanStation fills only a corner → game tiny.
         //
-        // Correct approach: NEVER resize the FBO inside the video_refresh callback for
-        // HW cores. The FBO is pre-allocated at base_width × base_height (or updated via
-        // SET_GEOMETRY). SwanStation always glClear the entire FBO and renders into it
-        // at whatever display_w × display_h it currently uses — which always fits because
-        // the PSX display area never exceeds the FBO dimensions set at init/geometry-update.
+        // Fix: resize FBO dynamically whenever the reported HW frame dimensions change.
+        // SwanStation always glClear the entire FBO before rendering, so the result
+        // fills the FBO correctly and we can sample the full texture (0,0)→(1,1).
+        const bool isHWFrame = (data != nullptr) &&
+            (data == reinterpret_cast<const void*>((uintptr_t)-1));
+
+        if (isHWFrame && width > 0 && height > 0) {
+            video->updateRendererSize(width, height);
+        }
+
         video->onNewFrame(data, width, height, pitch);
 
         if (video->rendersInVideoCallback()) {
