@@ -46,8 +46,7 @@ void Environment::deinitialize() {
     hw_context_reset = nullptr;
     hw_context_destroy = nullptr;
 
-    retro_disk_control_callback_copy = {};
-    retro_disk_control_available = false;
+    retro_disk_control_callback = nullptr;
 
     savesDirectory = std::string();
     systemDirectory = std::string();
@@ -156,24 +155,6 @@ bool Environment::environment_handle_set_hw_render(struct retro_hw_render_callba
     hw_context_reset = hw_render_callback->context_reset;
     hw_render_callback->get_current_framebuffer = callback_get_current_framebuffer;
     hw_render_callback->get_proc_address = &eglGetProcAddress;
-
-    // LibretroDroid always provides an OpenGL ES context via EGL.
-    // Some cores (e.g. SwanStation) request a desktop OpenGL Core context
-    // (RETRO_HW_CONTEXT_OPENGL_CORE) and then use the accepted context_type
-    // to decide whether to compile desktop GLSL (#version 330 core) or
-    // GLES GLSL (#version 300 es).  Since we can only supply an ES context,
-    // override the context_type here so those cores detect GLES correctly.
-    switch (hw_render_callback->context_type) {
-        case RETRO_HW_CONTEXT_OPENGL:
-        case RETRO_HW_CONTEXT_OPENGL_CORE:
-            // Core requested desktop OpenGL — remap to GLES3 so shaders
-            // use #version 300 es instead of #version 330 core.
-            hw_render_callback->context_type = RETRO_HW_CONTEXT_OPENGLES3;
-            break;
-        default:
-            // OPENGLES2, OPENGLES3, OPENGLES_VERSION — leave unchanged.
-            break;
-    }
 
     return true;
 }
@@ -313,40 +294,8 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         }
 
         case RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE: {
-            LOGD("Called RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE");
-            // Copy by value: SwanStation passes a pointer to a stack-allocated struct.
-            // Storing the raw pointer causes a dangling-pointer crash (SIGBUS misaligned
-            // access) the next time getRetroDiskControlCallback() is called from the
-            // GL thread (e.g. when the in-game menu is opened).
-            if (data != nullptr) {
-                retro_disk_control_callback_copy =
-                    *static_cast<struct retro_disk_control_callback *>(data);
-                retro_disk_control_available = true;
-            } else {
-                retro_disk_control_available = false;
-            }
-            return true;
-        }
-
-        case RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE: {
-            LOGD("Called RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE");
-            // SwanStation and other modern cores use the extended interface.
-            // Map the first seven fields (identical to the base struct) so the
-            // rest of the code can use the existing callback struct unchanged.
-            if (data != nullptr) {
-                const auto *ext =
-                    static_cast<const struct retro_disk_control_ext_callback *>(data);
-                retro_disk_control_callback_copy.set_eject_state     = ext->set_eject_state;
-                retro_disk_control_callback_copy.get_eject_state     = ext->get_eject_state;
-                retro_disk_control_callback_copy.get_image_index     = ext->get_image_index;
-                retro_disk_control_callback_copy.set_image_index     = ext->set_image_index;
-                retro_disk_control_callback_copy.get_num_images      = ext->get_num_images;
-                retro_disk_control_callback_copy.replace_image_index = ext->replace_image_index;
-                retro_disk_control_callback_copy.add_image_index     = ext->add_image_index;
-                retro_disk_control_available = true;
-            } else {
-                retro_disk_control_available = false;
-            }
+            LOGD("Called RETRO_ENVIRONMENT_SET_ROTATION");
+            retro_disk_control_callback = static_cast<struct retro_disk_control_callback*>(data);
             return true;
         }
 
@@ -427,8 +376,7 @@ retro_hw_context_reset_t Environment::getHwContextDestroy() const {
 }
 
 struct retro_disk_control_callback* Environment::getRetroDiskControlCallback() const {
-    if (!retro_disk_control_available) return nullptr;
-    return const_cast<struct retro_disk_control_callback *>(&retro_disk_control_callback_copy);
+    return retro_disk_control_callback;
 }
 
 int Environment::getPixelFormat() const {

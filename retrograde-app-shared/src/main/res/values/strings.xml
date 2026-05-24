@@ -44,12 +44,6 @@
     <string name="setting_mupen64plus_pak2">Player 2 Pak</string>
     <string name="setting_pcsx_rearmed_frameskip">Frameskip</string>
     <string name="setting_pcsx_rearmed_drc">Dynamic recompiler</string>
-    <string name="setting_swanstation_gpu_renderer">GPU Renderer</string>
-    <string name="setting_swanstation_cpu_overclock">CPU Overclock (%)</string>
-    <string name="value_swanstation_gpu_renderer_auto">Auto</string>
-    <string name="value_swanstation_gpu_renderer_software">Software</string>
-    <string name="value_swanstation_gpu_renderer_opengl">OpenGL</string>
-    <string name="value_swanstation_gpu_renderer_vulkan">Vulkan</string>
     <string name="setting_ppsspp_auto_frameskip">Auto frameskip</string>
     <string name="setting_ppsspp_frameskip">Frameskip</string>
     <string name="setting_ppsspp_cpu_core">Dynamic recompiler</string>

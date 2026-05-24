@@ -141,28 +141,6 @@ void Video::renderFrame() {
     if (skipDuplicateFrames && !isDirty) return;
     isDirty = false;
 
-    // HW-accelerated cores (e.g. SwanStation) use custom VAOs and do not
-    // unbind them after rendering.  In GLES 3.0 a non-zero VAO being bound
-    // when glVertexAttribPointer is called with a client-side pointer is
-    // undefined behaviour; on Adreno 630 it produces a black screen.
-    // Reset to the default VAO (0) so our own vertex setup below works
-    // correctly regardless of what the core left bound.
-    glBindVertexArray(0);
-
-    // Also restore depth-mask in case the core left it disabled
-    // (e.g. SwanStation sets glDepthMask(GL_FALSE) during display).
-    glDepthMask(GL_TRUE);
-
-    // Unbind any VBO the core left on GL_ARRAY_BUFFER.
-    // glBindVertexArray(0) resets VAO state but does NOT unbind GL_ARRAY_BUFFER —
-    // that is a global binding. In GLES3, if a VBO is bound when
-    // glVertexAttribPointer is called with a raw pointer, the driver interprets
-    // the pointer as a byte-offset into that VBO (→ null deref → black screen).
-    // ImmersiveMode::renderToFinalOutput() happens to call glBindBuffer(ARRAY_BUFFER,0)
-    // which is why immersive mode works without this fix. Non-immersive mode does
-    // not have that cleanup, so the SwanStation VBO leaks into our vertex setup.
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
     glDisable(GL_DEPTH_TEST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
