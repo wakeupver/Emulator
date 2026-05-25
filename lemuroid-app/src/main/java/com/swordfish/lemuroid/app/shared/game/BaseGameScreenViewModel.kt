@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 
 class BaseGameScreenViewModel(
     private val appContext: Context,
@@ -59,6 +60,7 @@ class BaseGameScreenViewModel(
     coreVariablesManager: CoreVariablesManager,
     rumbleManager: RumbleManager,
 ) : ViewModel(), DefaultLifecycleObserver {
+
     class Factory(
         private val appContext: Context,
         private val game: Game,
@@ -142,40 +144,45 @@ class BaseGameScreenViewModel(
             sideEffects,
         )
 
+    /** True while any blocking operation (save/load/reset) is in progress. */
     val loadingState = MutableStateFlow(false)
 
-    private inline fun withLoading(block: () -> Unit) {
+    /**
+     * Guards [requestFinish] so that only the first call runs the save+finish sequence.
+     * Subsequent calls (e.g. rapid back-button taps) are silently dropped.
+     */
+    private val finishRequested = AtomicBoolean(false)
+
+    /**
+     * Suspending, exception-safe loading gate.
+     *
+     * Sets [loadingState] to `true`, runs [block], then always resets it to `false` —
+     * even if [block] throws.  Replaces the old non-suspend inline version that could
+     * leave the state stuck at `true` on early returns or exceptions.
+     */
+    private suspend fun withLoading(block: suspend () -> Unit) {
         loadingState.value = true
-        block()
-        loadingState.value = false
+        try {
+            block()
+        } finally {
+            loadingState.value = false
+        }
     }
 
-    fun getGameState(): Flow<GameViewModelRetroGameView.GameState> {
-        return retroGameView.getGameState()
-    }
+    fun getGameState(): Flow<GameViewModelRetroGameView.GameState> = retroGameView.getGameState()
 
-    fun getSideEffects(): Flow<GameViewModelSideEffects.UiEffect> {
-        return sideEffects.getUiEffects()
-    }
+    fun getSideEffects(): Flow<GameViewModelSideEffects.UiEffect> = sideEffects.getUiEffects()
 
-    fun getTiltConfiguration(): Flow<TiltConfiguration> {
-        return tilt.getTiltConfiguration()
-    }
+    fun getTiltConfiguration(): Flow<TiltConfiguration> = tilt.getTiltConfiguration()
 
-    fun getSimulatedTiltEvents(): Flow<InputState> {
-        return tilt.getSimulatedTiltEvents()
-    }
+    fun getSimulatedTiltEvents(): Flow<InputState> = tilt.getSimulatedTiltEvents()
 
     fun getTouchControlsSettings(
         density: Density,
         insets: WindowInsets,
-    ): Flow<TouchControllerSettingsManager.Settings?> {
-        return touchControls.getTouchControlsSettings(density, insets)
-    }
+    ): Flow<TouchControllerSettingsManager.Settings?> = touchControls.getTouchControlsSettings(density, insets)
 
-    fun getTouchHapticFeedbackMode(): Flow<HapticFeedbackMode> {
-        return touchControls.getTouchHapticFeedbackMode()
-    }
+    fun getTouchHapticFeedbackMode(): Flow<HapticFeedbackMode> = touchControls.getTouchHapticFeedbackMode()
 
     fun createRetroView(
         context: Context,
@@ -197,133 +204,143 @@ class BaseGameScreenViewModel(
         gameLoader: GameLoader,
         requestLoadSave: Boolean,
     ) {
-        Timber.i("Calling load game: $game")
+        Timber.i("loadGame: starting for game=$game")
         retroGameView.initialize(applicationContext, game, systemCoreConfig, gameLoader, requestLoadSave)
     }
 
-    fun showEditControls(show: Boolean) {
-        touchControls.showEditControls(show)
-    }
+    fun showEditControls(show: Boolean) = touchControls.showEditControls(show)
 
-    fun isEditControlShown(): Flow<Boolean> {
-        return touchControls.isEditControlsShown()
-    }
+    fun isEditControlShown(): Flow<Boolean> = touchControls.isEditControlsShown()
 
-    fun updateTouchControllerSettings(touchControllerSettings: TouchControllerSettingsManager.Settings) {
+    fun updateTouchControllerSettings(touchControllerSettings: TouchControllerSettingsManager.Settings) =
         touchControls.updateTouchControllerSettings(touchControllerSettings)
-    }
 
-    fun resetTouchControls() {
-        touchControls.resetTouchControls()
-    }
+    fun resetTouchControls() = touchControls.resetTouchControls()
 
-    fun onScreenOrientationChanged(orientation: TouchControllerSettingsManager.Orientation) {
+    fun onScreenOrientationChanged(orientation: TouchControllerSettingsManager.Orientation) =
         touchControls.updateScreenOrientation(orientation)
-    }
 
-    fun isTouchControllerVisible(): Flow<Boolean> {
-        return touchControls.isTouchControllerVisible()
-    }
+    fun isTouchControllerVisible(): Flow<Boolean> = touchControls.isTouchControllerVisible()
 
-    fun getTouchControllerConfig(): Flow<ControllerConfig> {
-        return touchControls.getTouchControllerConfig()
-    }
+    fun getTouchControllerConfig(): Flow<ControllerConfig> = touchControls.getTouchControllerConfig()
 
-    fun changeTiltConfiguration(tiltConfig: TiltConfiguration) {
-        tilt.changeTiltConfiguration(tiltConfig)
-    }
+    fun changeTiltConfiguration(tiltConfig: TiltConfiguration) = tilt.changeTiltConfiguration(tiltConfig)
 
-    fun isMenuPressed(): Flow<Boolean> {
-        return touchControls.isMenuPressed()
-    }
+    fun isMenuPressed(): Flow<Boolean> = touchControls.isMenuPressed()
 
     suspend fun saveSlot(index: Int) {
         if (loadingState.value) return
-        withLoading {
-            saves.saveSlot(index)
-        }
+        withLoading { saves.saveSlot(index) }
     }
 
     suspend fun loadSlot(index: Int) {
         if (loadingState.value) return
-        withLoading {
-            saves.loadSlot(index)
-        }
+        withLoading { saves.loadSlot(index) }
     }
 
     fun saveQuickSave() {
-        Timber.d("Saving quick save")
         if (loadingState.value) return
-        withLoading {
-            saves.saveQuickSave()
+        Timber.d("saveQuickSave: capturing")
+        viewModelScope.launch {
+            withLoading { saves.saveQuickSave() }
         }
     }
 
     fun loadQuickSave() {
-        Timber.d("Loading quick save")
         if (loadingState.value) return
-        withLoading {
-            saves.loadQuickSave()
+        Timber.d("loadQuickSave: restoring")
+        viewModelScope.launch {
+            withLoading { saves.loadQuickSave() }
         }
     }
 
     fun toggleFastForward() {
-        Timber.d("Loading quick save")
         retroGameView.retroGameView?.apply {
             frameSpeed = if (frameSpeed == 1) 2 else 1
+            Timber.d("toggleFastForward: frameSpeed=$frameSpeed")
         }
     }
 
-    suspend fun reset() =
+    suspend fun reset() {
         withLoading {
             try {
                 delay(appContext.longAnimationDuration().toLong())
                 retroGameView.retroGameViewFlow().reset()
             } catch (e: Throwable) {
-                Timber.e(e, "Error in reset")
-            }
-        }
-
-    fun requestFinish() {
-        if (loadingState.value) return
-        viewModelScope.launch {
-            withLoading {
-                val snapshot = saves.captureSaveSnapshot(true) ?: return@launch
-                saves.writeSaveSnapshot(snapshot)
-                sideEffects.requestSuccessfulFinish()
+                Timber.e(e, "Error during reset")
             }
         }
     }
 
+    /**
+     * Initiates a clean game-session close: captures a save snapshot, writes it, then signals
+     * the Activity to finish.
+     *
+     * The [AtomicBoolean] guard ensures this sequence runs at most once per session, no matter
+     * how many times the back button is pressed or the menu's Quit action is tapped.
+     */
+    fun requestFinish() {
+        if (loadingState.value) return
+        if (!finishRequested.compareAndSet(false, true)) {
+            Timber.d("requestFinish: already in progress, ignoring duplicate call")
+            return
+        }
+
+        viewModelScope.launch {
+            withLoading {
+                try {
+                    val snapshot = saves.captureSaveSnapshot(true)
+                    if (snapshot == null) {
+                        Timber.w("requestFinish: captureSaveSnapshot returned null — emulator not ready?")
+                    } else {
+                        saves.writeSaveSnapshot(snapshot)
+                    }
+                    sideEffects.requestSuccessfulFinish()
+                } catch (e: Throwable) {
+                    Timber.e(e, "requestFinish: error during save-on-quit")
+                    // Still finish — a failed save must never trap the user in the game.
+                    sideEffects.requestSuccessfulFinish()
+                }
+            }
+        }
+    }
+
+    /**
+     * Schedules a background save via [GameService] when the Activity goes to the background
+     * (onStop) without a deliberate close.  Null snapshots are logged but do not crash.
+     */
     fun requestBackgroundSave() {
         if (loadingState.value) return
         GameService.schedule {
-            val snapshot = saves.captureSaveSnapshot(false)
-            saves.writeSaveSnapshot(snapshot)
+            try {
+                val snapshot = saves.captureSaveSnapshot(false)
+                if (snapshot != null) {
+                    saves.writeSaveSnapshot(snapshot)
+                } else {
+                    Timber.w("requestBackgroundSave: snapshot was null, skipping write")
+                }
+            } catch (e: Throwable) {
+                Timber.e(e, "requestBackgroundSave: error during background save")
+            }
         }
     }
 
-    fun handleVirtualInputEvent(events: List<InputEvent>) {
-        touchControls.handleVirtualInputEvent(events)
-    }
+    fun handleVirtualInputEvent(events: List<InputEvent>) = touchControls.handleVirtualInputEvent(events)
 
     override fun onCreate(owner: LifecycleOwner) {
         super.onCreate(owner)
-
         owner.lifecycle.addObserver(tilt)
         owner.lifecycle.addObserver(inputs)
         owner.lifecycle.addObserver(retroGameView)
         owner.lifecycle.addObserver(touchControls)
     }
 
-    fun sendKeyEvent(
-        keyCode: Int,
-        event: KeyEvent,
-    ): Boolean {
-        return inputs.sendKeyEvent(keyCode, event)
+    override fun onCleared() {
+        super.onCleared()
+        retroGameView.closeOpenFds()
     }
 
-    fun sendMotionEvent(event: MotionEvent): Boolean {
-        return inputs.sendMotionEvent(event)
-    }
+    fun sendKeyEvent(keyCode: Int, event: KeyEvent): Boolean = inputs.sendKeyEvent(keyCode, event)
+
+    fun sendMotionEvent(event: MotionEvent): Boolean = inputs.sendMotionEvent(event)
 }

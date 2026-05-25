@@ -36,12 +36,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import kotlin.time.Duration.Companion.seconds
 
@@ -56,41 +57,56 @@ class GameViewModelRetroGameView(
     private val rumbleManager: RumbleManager,
     private val scope: CoroutineScope,
 ) : DefaultLifecycleObserver {
+
     sealed interface GameState {
+        /** Initial state — no load has been requested yet. */
         data object Uninitialized : GameState
 
+        /** A human-readable [message] describes the current loading step. */
         data class Loading(val message: String) : GameState
 
+        /**
+         * Core + ROM data are ready; the [GLRetroView] has not been created yet.
+         * This state is transient — [createRetroView] moves it to [Ready] immediately.
+         */
         data class Loaded(
             val gameData: GameLoader.GameData,
             val retroViewData: GLRetroViewData,
         ) : GameState
 
+        /** The [GLRetroView] is running and the session is fully active. */
         data object Ready : GameState
+
+        /** A terminal error occurred; [message] is user-displayable. */
+        data class Error(val message: String) : GameState
     }
 
     private val gameState: MutableStateFlow<GameState> = MutableStateFlow(GameState.Uninitialized)
 
+    /** Guards [initialize] so concurrent or repeated calls are no-ops after the first. */
+    private val initMutex = Mutex()
+
     private val retroGameViewFlow = MutableStateFlow<GLRetroView?>(null)
     var retroGameView: GLRetroView? by MutableStateProperty(retroGameViewFlow)
 
-    fun getGameState(): Flow<GameState> {
-        return gameState.debounce(200)
-    }
+    /**
+     * Returns the game state stream.
+     *
+     * No debounce is applied here — callers observe raw transitions and can apply their own
+     * debounce policy if needed.  The previous 200 ms debounce was hiding rapid Loading→Loaded
+     * transitions, causing the UI to briefly show stale states.
+     */
+    fun getGameState(): Flow<GameState> = gameState
 
     /**
      * Closes raw Linux file-descriptor integers that were detached via
      * [android.os.ParcelFileDescriptor.detachFd] during the PPSSPP-style direct load.
      *
-     * [ParcelFileDescriptor.adoptFd] re-wraps the raw int into a PFD (taking ownership),
-     * then [ParcelFileDescriptor.close] tells the kernel to release the fd.
-     * This is the canonical Android API for closing a detached fd without reflection.
-     *
      * Call this from [BaseGameScreenViewModel.onCleared] when the game session ends.
      */
     fun closeOpenFds() {
         val romFiles = (gameState.value as? GameState.Loaded)?.gameData?.gameFiles
-        (romFiles as? com.swordfish.lemuroid.lib.storage.RomFiles.Standard)
+        (romFiles as? RomFiles.Standard)
             ?.detachedFds
             ?.forEach { rawFd ->
                 runCatching {
@@ -102,6 +118,10 @@ class GameViewModelRetroGameView(
             }
     }
 
+    /**
+     * Begins the load pipeline.  Safe to call from any coroutine; concurrent/re-entrant calls
+     * after the first are silently ignored thanks to [initMutex].
+     */
     suspend fun initialize(
         applicationContext: Context,
         game: Game,
@@ -109,74 +129,80 @@ class GameViewModelRetroGameView(
         gameLoader: GameLoader,
         requestLoadSave: Boolean,
     ) {
-        val currentState = gameState.value
-        if (currentState != GameState.Uninitialized) return
+        // Fast-path: if we've already started, do nothing.
+        if (gameState.value != GameState.Uninitialized) return
 
-        val autoSaveEnabled = settingsManager.autoSave()
-        val filter = settingsManager.screenFilter()
-        val hdMode = settingsManager.hdMode()
-        val hdModeQuality = settingsManager.hdModeQuality()
-        val lowLatencyAudio = settingsManager.lowLatencyAudio()
-        val enableRumble = settingsManager.enableRumble()
-        val directLoad = settingsManager.allowDirectGameLoad()
-        val enableImmersiveMode = settingsManager.enableImmersiveMode()
-        val aspectRatioMode = settingsManager.aspectRatioMode()
+        // Serialize access so concurrent callers can't both pass the check above and
+        // both kick off a duplicate load.
+        initMutex.withLock {
+            if (gameState.value != GameState.Uninitialized) return
 
-        val hasMicrophonePermission =
-            ContextCompat.checkSelfPermission(
-                applicationContext,
-                android.Manifest.permission.RECORD_AUDIO,
-            ) == PackageManager.PERMISSION_GRANTED
+            val autoSaveEnabled = settingsManager.autoSave()
+            val filter = settingsManager.screenFilter()
+            val hdMode = settingsManager.hdMode()
+            val hdModeQuality = settingsManager.hdModeQuality()
+            val lowLatencyAudio = settingsManager.lowLatencyAudio()
+            val enableRumble = settingsManager.enableRumble()
+            val directLoad = settingsManager.allowDirectGameLoad()
+            val enableImmersiveMode = settingsManager.enableImmersiveMode()
+            val aspectRatioMode = settingsManager.aspectRatioMode()
 
-        val enableMicrophone = systemCoreConfig.supportsMicrophone && hasMicrophonePermission
+            val hasMicrophonePermission =
+                ContextCompat.checkSelfPermission(
+                    applicationContext,
+                    android.Manifest.permission.RECORD_AUDIO,
+                ) == PackageManager.PERMISSION_GRANTED
 
-        val loadingStatesFlow =
-            gameLoader.load(
-                applicationContext,
-                game,
-                requestLoadSave && autoSaveEnabled,
-                systemCoreConfig,
-                directLoad,
-            )
+            val enableMicrophone = systemCoreConfig.supportsMicrophone && hasMicrophonePermission
 
-        loadingStatesFlow
-            .flowOn(Dispatchers.IO)
-            .catch {
-                val message =
-                    if (it is GameLoaderException) {
-                        getErrorMessage(it.error)
-                    } else {
-                        ""
-                    }
-                sideEffects.requestFailureFinish(message)
-            }
-            .debounce(200)
-            .collect { loadingState ->
-                gameState.value =
-                    if (loadingState is GameLoader.LoadingState.Ready) {
-                        Timber.i("Setting state to loaded")
-                        val retroViewData =
-                            buildRetroViewData(
-                                applicationContext,
-                                systemCoreConfig,
-                                loadingState.gameData,
-                                hdMode,
-                                hdModeQuality,
-                                filter,
-                                lowLatencyAudio,
-                                enableRumble,
-                                enableMicrophone,
-                                enableImmersiveMode,
-                                aspectRatioMode,
-                            )
-                        GameState.Loaded(
-                            gameData = loadingState.gameData,
-                            retroViewData = retroViewData,
-                        )
-                    } else {
-                        GameState.Loading(getLoadingMessage(loadingState))
-                    }
-            }
+            gameLoader
+                .load(
+                    applicationContext,
+                    game,
+                    requestLoadSave && autoSaveEnabled,
+                    systemCoreConfig,
+                    directLoad,
+                )
+                .flowOn(Dispatchers.IO)
+                .catch { throwable ->
+                    val errorMsg =
+                        if (throwable is GameLoaderException) getErrorMessage(throwable.error)
+                        else appContext.getString(R.string.game_loader_error_generic)
+
+                    Timber.e(throwable, "GameLoader pipeline failed")
+                    // Publish the error both to the state machine (for structured observation)
+                    // and via side-effects (for the Activity to act on).
+                    gameState.value = GameState.Error(errorMsg)
+                    sideEffects.requestFailureFinish(errorMsg)
+                }
+                .collect { loadingState ->
+                    gameState.value =
+                        when (loadingState) {
+                            is GameLoader.LoadingState.Ready -> {
+                                Timber.i("GameLoader: data ready, building RetroViewData")
+                                val retroViewData =
+                                    buildRetroViewData(
+                                        applicationContext,
+                                        systemCoreConfig,
+                                        loadingState.gameData,
+                                        hdMode,
+                                        hdModeQuality,
+                                        filter,
+                                        lowLatencyAudio,
+                                        enableRumble,
+                                        enableMicrophone,
+                                        enableImmersiveMode,
+                                        aspectRatioMode,
+                                    )
+                                GameState.Loaded(
+                                    gameData = loadingState.gameData,
+                                    retroViewData = retroViewData,
+                                )
+                            }
+                            else -> GameState.Loading(getLoadingMessage(loadingState))
+                        }
+                }
+        }
     }
 
     fun createRetroView(
@@ -184,7 +210,9 @@ class GameViewModelRetroGameView(
         lifecycle: LifecycleOwner,
     ): Pair<GameLoader.GameData, GLRetroView> {
         val currentState = gameState.value
-        if (currentState !is GameState.Loaded) throw IllegalStateException("Game is not loaded.")
+        check(currentState is GameState.Loaded) {
+            "createRetroView called in invalid state: $currentState"
+        }
 
         val result =
             GLRetroView(context, currentState.retroViewData)
@@ -200,12 +228,11 @@ class GameViewModelRetroGameView(
         lifecycle.lifecycle.addObserver(result)
 
         if (BuildConfig.DEBUG) {
-            runCatching {
-                printRetroVariables(result)
-            }
+            runCatching { printRetroVariables(result) }
         }
 
         retroGameViewFlow.value = result
+        // Advance state before returning so observers see Ready immediately.
         gameState.value = GameState.Ready
 
         return currentState.gameData to result
@@ -275,30 +302,22 @@ class GameViewModelRetroGameView(
     }
 
     private fun buildImmersiveModeConfiguration(enableImmersiveMode: Boolean): ImmersiveMode? {
-        return if (enableImmersiveMode) {
-            ImmersiveMode(blendFactor = 0.05f)
-        } else {
-            null
-        }
+        return if (enableImmersiveMode) ImmersiveMode(blendFactor = 0.05f) else null
     }
 
     private fun getLoadingMessage(loadingState: GameLoader.LoadingState): String {
         return when (loadingState) {
-            is GameLoader.LoadingState.LoadingCore -> {
+            is GameLoader.LoadingState.LoadingCore ->
                 appContext.getString(com.swordfish.lemuroid.ext.R.string.game_loading_download_core)
-            }
-
-            is GameLoader.LoadingState.LoadingGame -> {
+            is GameLoader.LoadingState.LoadingGame ->
                 appContext.getString(R.string.game_loading_preparing_game)
-            }
-
             else -> ""
         }
     }
 
     private fun printRetroVariables(retroGameView: GLRetroView) {
         scope.launch {
-            // Some cores do not immediately call SET_VARIABLES so we might need to wait a little bit
+            // Some cores do not immediately call SET_VARIABLES so we might need to wait a little.
             delay(1.seconds)
             retroGameView.getVariables().forEach {
                 Timber.i("Libretro variable: $it")
@@ -328,7 +347,7 @@ class GameViewModelRetroGameView(
             val options = coreVariablesManager.getOptionsForCore(system.id, systemCoreConfig)
             updateCoreVariables(options)
         } catch (e: Exception) {
-            Timber.e(e)
+            Timber.e(e, "Failed to initialize core variables")
         }
     }
 
@@ -340,14 +359,13 @@ class GameViewModelRetroGameView(
 
     private suspend fun initializeRetroGameViewErrorsFlow() {
         retroGameViewFlow().getGLRetroErrors()
-            .catch { Timber.e(it, "Exception in GLRetroErrors. Ironic.") }
+            .catch { Timber.e(it, "Exception in GLRetroErrors stream.") }
             .collect { handleRetroViewError(it) }
     }
 
     private fun updateCoreVariables(options: List<CoreVariable>) {
         val updatedVariables =
-            options.map { Variable(it.key, it.value) }
-                .toTypedArray()
+            options.map { Variable(it.key, it.value) }.toTypedArray()
 
         updatedVariables.forEach {
             Timber.i("Updating core variable: ${it.key} ${it.value}")
@@ -357,7 +375,7 @@ class GameViewModelRetroGameView(
     }
 
     private fun handleRetroViewError(errorCode: Int) {
-        Timber.e("Error in GLRetroView $errorCode")
+        Timber.e("Error in GLRetroView errorCode=$errorCode")
         val gameLoaderError =
             when (errorCode) {
                 GLRetroView.ERROR_GL_NOT_COMPATIBLE -> GameLoaderError.GLIncompatible
@@ -367,35 +385,26 @@ class GameViewModelRetroGameView(
                 else -> GameLoaderError.Generic
             }
 
-        sideEffects.requestFailureFinish(getErrorMessage(gameLoaderError))
+        val message = getErrorMessage(gameLoaderError)
+        gameState.value = GameState.Error(message)
+        sideEffects.requestFailureFinish(message)
     }
 
-    private fun getErrorMessage(gameError: GameLoaderError): String {
-        val message =
-            when (gameError) {
-                is GameLoaderError.GLIncompatible -> {
-                    appContext.getString(R.string.game_loader_error_gl_incompatible)
-                }
-                is GameLoaderError.Generic -> {
-                    appContext.getString(R.string.game_loader_error_generic)
-                }
-                is GameLoaderError.LoadCore -> {
-                    appContext.getString(com.swordfish.lemuroid.ext.R.string.game_loader_error_load_core)
-                }
-                is GameLoaderError.LoadGame -> {
-                    appContext.getString(R.string.game_loader_error_load_game)
-                }
-                is GameLoaderError.Saves -> {
-                    appContext.getString(R.string.game_loader_error_save)
-                }
-                is GameLoaderError.UnsupportedArchitecture -> {
-                    appContext.getString(R.string.game_loader_error_unsupported_architecture)
-                }
-                is GameLoaderError.MissingBiosFiles -> {
-                    appContext.getString(R.string.game_loader_error_missing_bios, gameError.missingFiles)
-                }
-            }
-
-        return message
-    }
+    private fun getErrorMessage(gameError: GameLoaderError): String =
+        when (gameError) {
+            is GameLoaderError.GLIncompatible ->
+                appContext.getString(R.string.game_loader_error_gl_incompatible)
+            is GameLoaderError.Generic ->
+                appContext.getString(R.string.game_loader_error_generic)
+            is GameLoaderError.LoadCore ->
+                appContext.getString(com.swordfish.lemuroid.ext.R.string.game_loader_error_load_core)
+            is GameLoaderError.LoadGame ->
+                appContext.getString(R.string.game_loader_error_load_game)
+            is GameLoaderError.Saves ->
+                appContext.getString(R.string.game_loader_error_save)
+            is GameLoaderError.UnsupportedArchitecture ->
+                appContext.getString(R.string.game_loader_error_unsupported_architecture)
+            is GameLoaderError.MissingBiosFiles ->
+                appContext.getString(R.string.game_loader_error_missing_bios, gameError.missingFiles)
+        }
 }
