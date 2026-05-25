@@ -72,15 +72,7 @@ fun PadKitScope.WSLandscapeLeft(
     modifier: Modifier = Modifier,
     settings: TouchControllerSettingsManager.Settings,
 ) {
-    BaseLayoutLeft(
-        settings = settings,
-        modifier = modifier,
-        primaryDial = { LemuroidControlCross(id = Id.DiscreteDirection(ComposeTouchLayouts.MOTION_SOURCE_DPAD)) },
-        secondaryDials = {
-            Box(modifier = Modifier.radialPosition(120f))
-            SecondaryButtonMenuPlaceholder(settings)
-        },
-    )
+    WSPortraitLeft(modifier = modifier, settings = settings)
 }
 
 @Composable

@@ -3,7 +3,6 @@ package com.swordfish.touchinput.radial.layouts
 import android.view.KeyEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.swordfish.touchinput.radial.controls.LemuroidControlButton
 import com.swordfish.touchinput.radial.controls.LemuroidControlCross
@@ -15,7 +14,7 @@ import com.swordfish.touchinput.radial.layouts.shared.SecondaryButtonSelect
 import com.swordfish.touchinput.radial.layouts.shared.SecondaryButtonStart
 import com.swordfish.touchinput.radial.settings.TouchControllerSettingsManager
 import com.swordfish.touchinput.radial.ui.LemuroidCentralButton
-import com.swordfish.touchinput.radial.utils.buildCentral6ButtonsAnchors
+import com.swordfish.touchinput.radial.layouts.shared.rememberCentralAnchorsForSixButtons
 import gg.padkit.PadKitScope
 import gg.padkit.anchors.Anchor
 import gg.padkit.ids.Id
@@ -81,14 +80,11 @@ fun PadKitScope.Genesis6Right(
 }
 
 @Composable
-private fun rememberCentralAnchorsForSixButtons(rotation: Float): PersistentList<Anchor<Id.Key>> {
-    return remember(rotation) {
-        buildCentral6ButtonsAnchors(
-            rotation,
-            KeyEvent.KEYCODE_BUTTON_X,
-            KeyEvent.KEYCODE_BUTTON_L1,
-            KeyEvent.KEYCODE_BUTTON_B,
-            KeyEvent.KEYCODE_BUTTON_Y,
-        )
-    }
-}
+private fun rememberCentralAnchorsForSixButtons(rotation: Float): PersistentList<Anchor<Id.Key>> =
+    rememberCentralAnchorsForSixButtons(
+        rotation,
+        KeyEvent.KEYCODE_BUTTON_X,
+        KeyEvent.KEYCODE_BUTTON_L1,
+        KeyEvent.KEYCODE_BUTTON_B,
+        KeyEvent.KEYCODE_BUTTON_Y,
+    )

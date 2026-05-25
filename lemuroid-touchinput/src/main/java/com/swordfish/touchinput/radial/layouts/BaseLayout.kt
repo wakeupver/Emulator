@@ -53,6 +53,15 @@ fun BaseLayoutRight(
     primaryDial: @Composable () -> Unit,
     secondaryDials: @Composable LayoutRadialSecondaryDialsScope.() -> Unit,
 ) {
+    val interpolatedDialSize =
+        remember(settings.scale) {
+            lerp(
+                TouchControllerSettingsManager.MIN_SCALE,
+                TouchControllerSettingsManager.MAX_SCALE,
+                settings.scale,
+            )
+        }
+
     LayoutRadial(
         modifier =
             modifier
@@ -63,13 +72,7 @@ fun BaseLayoutRight(
                 .padding(LocalLemuroidPadTheme.current.padding),
         primaryDial = primaryDial,
         secondaryDials = secondaryDials,
-        primaryDialMaxSize =
-            160.dp *
-                lerp(
-                    TouchControllerSettingsManager.MIN_SCALE,
-                    TouchControllerSettingsManager.MAX_SCALE,
-                    settings.scale,
-                ),
+        primaryDialMaxSize = 160.dp * interpolatedDialSize,
         secondaryDialsBaseRotationInDegrees = -settings.rotation * TouchControllerSettingsManager.MAX_ROTATION,
     )
 }
