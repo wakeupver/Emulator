@@ -16,6 +16,7 @@
  */
 
 #include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <EGL/egl.h>
 #include <cstdlib>
 #include <string>
@@ -154,7 +155,26 @@ void Video::renderFrame() {
     glDisable(GL_CULL_FACE);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glDepthMask(GL_FALSE);
+
+    // Depth mask MUST be GL_TRUE before glClear(GL_DEPTH_BUFFER_BIT) has
+    // any effect. Set it true now; we'll set it false after the clear.
+    glDepthMask(GL_TRUE);
+
+    // PPSSPP (and any GLES 3 HW-rendering core) uses Vertex Array Objects.
+    // In GLES 3, glVertexAttribPointer modifies the *currently bound* VAO,
+    // not the global state. If a non-zero VAO is still bound when we call
+    // glVertexAttribPointer below, our draw will use the wrong attribute
+    // layout and produce no geometry (blank output).
+    // Unbind any VAO so our client-side pointer calls target VAO 0.
+    glBindVertexArray(0);
+
+    // Similarly, unbind VBOs/IBOs so client-side array pointers work.
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    // Make sure no stale program is active.
+    glUseProgram(0);
+
     // Reset any leftover texture-unit bindings from the core.
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -165,6 +185,9 @@ void Video::renderFrame() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Now disable depth writes for the 2-D shader passes that follow.
+    glDepthMask(GL_FALSE);
 
     if (immersiveModeEnabled) {
         immersiveMode.renderBackground(
@@ -199,6 +222,13 @@ void Video::renderFrame() {
         }
 
         glUseProgram(shader.gProgram);
+
+        // Ensure no VAO from the HW core is active — in GLES 3,
+        // glVertexAttribPointer writes into the *bound* VAO. VAO 0 means
+        // client-side arrays, which is what libretrodroid uses.
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
         auto vertices = isLastPass ? videoLayout.getForegroundVertices() : videoLayout.getFramebufferVertices();
         glVertexAttribPointer(shader.gvPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, vertices.data());

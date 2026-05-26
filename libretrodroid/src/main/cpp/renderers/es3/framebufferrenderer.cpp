@@ -38,7 +38,13 @@ FramebufferRenderer::FramebufferRenderer(
 }
 
 void FramebufferRenderer::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
-    Renderer::onNewFrame(data, width, height, pitch);
+    // For HW-rendered cores (e.g. PPSSPP) the core renders into OUR FBO, then
+    // calls retro_video_refresh(RETRO_HW_FRAME_BUFFER_VALID, displayW, displayH, 0).
+    // The reported display size can differ from the actual FBO dimensions
+    // (PPSSPP reports 480x270 for the PSP visible area but its FBO is 480x272).
+    // Always track the ACTUAL FBO size so the textureSize uniform and viewport
+    // coordinates stay accurate. Caller-reported dimensions are advisory only.
+    Renderer::onNewFrame(data, this->width, this->height, pitch);
 
     if (isDirty) {
         initializeBuffers();
