@@ -141,7 +141,26 @@ void Video::renderFrame() {
     if (skipDuplicateFrames && !isDirty) return;
     isDirty = false;
 
+    // -----------------------------------------------------------------------
+    // Reset critical GL state that a hardware-rendering core (e.g. PPSSPP)
+    // may have left dirty. Leaving any of these enabled corrupts the shader
+    // passes (blank/transparent UI elements, wrong colours, culled quads).
+    // Reference: RetroArch gl2.c gl2_renderchain_render() state teardown.
+    // -----------------------------------------------------------------------
     glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthMask(GL_FALSE);
+    // Reset any leftover texture-unit bindings from the core.
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    // -----------------------------------------------------------------------
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);

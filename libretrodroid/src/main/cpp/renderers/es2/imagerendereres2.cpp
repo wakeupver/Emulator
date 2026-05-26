@@ -25,10 +25,19 @@ ImageRendererES2::ImageRendererES2() {
     glBindTexture(GL_TEXTURE_2D, currentTexture);
 }
 
+// Compute the tightest valid GL_UNPACK_ALIGNMENT for a given row byte-width.
+// Mirrors RetroArch's gl2_get_alignment(). GLES requires power-of-two (1/2/4/8).
+static unsigned int glUnpackAlignment(size_t pitchBytes) {
+    if (pitchBytes & 1u) return 1;
+    if (pitchBytes & 2u) return 2;
+    if (pitchBytes & 4u) return 4;
+    return 8;
+}
+
 void ImageRendererES2::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
     glBindTexture(GL_TEXTURE_2D, currentTexture);
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, glUnpackAlignment(pitch));
 
     // Resize/reallocate texture and update filter params only when dimensions change.
     if (lastFrameSize.first != width || lastFrameSize.second != height) {
@@ -132,6 +141,8 @@ void ImageRendererES2::setPixelFormat(int pixelFormat) {
 
 // Converts 0RGB1555 → RGB565 into conversionBuffer.
 // Does NOT modify the caller's const buffer.
+// The extra `glow` bit (LSB of the 6-bit G channel) is derived from G's MSB,
+// matching RetroArch's conv_0rgb1555_rgb565 to prevent green-channel banding.
 void ImageRendererES2::convertDataFrom0RGB1555ToTemp(
     const void *data, unsigned int width, unsigned int height, size_t pitch
 ) {
@@ -144,11 +155,14 @@ void ImageRendererES2::convertDataFrom0RGB1555ToTemp(
         );
         uint16_t* dstRow = dst + y * width;
         for (unsigned int x = 0; x < width; ++x) {
-            uint16_t p = row[x];
-            // 0RGB1555 → RGB565: shift G and R up by 1 bit.
-            dstRow[x] = ((p & 0x1Fu))
-                       | ((p & (0x1Fu << 5u)) << 1u)
-                       | ((p & (0x1Fu << 10u)) << 1u);
+            uint16_t col = row[x];
+            // Shift R and G up by 1 bit to fit into RGB565.
+            uint16_t rg   = (col << 1u) & static_cast<uint16_t>((0x1Fu << 11u) | (0x1Fu << 6u));
+            uint16_t b    = col & 0x1Fu;
+            // Fill the new LSB of G from the MSB of the original 5-bit G
+            // (same trick as RetroArch) to avoid banding in green gradients.
+            uint16_t glow = (col >> 4u) & (1u << 5u);
+            dstRow[x] = rg | b | glow;
         }
     }
 }
