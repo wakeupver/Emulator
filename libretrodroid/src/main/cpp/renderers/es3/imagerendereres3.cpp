@@ -27,8 +27,14 @@ ImageRendererES3::ImageRendererES3() {
 }
 
 void ImageRendererES3::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
+    const void* uploadData = data;
+
     if (pixelFormat == RETRO_PIXEL_FORMAT_0RGB1555) {
-        convertDataFrom0RGB1555(data, width, height, pitch);
+        // Convert into a temporary buffer — do NOT touch the core's const buffer.
+        convertDataFrom0RGB1555ToTemp(data, width, height, pitch);
+        uploadData = conversionBuffer.data();
+        // After conversion the row stride is tightly packed (width * 2 bytes).
+        pitch = width * bytesPerPixel;
     }
 
     if (lastFrameSize.first != width || lastFrameSize.second != height || isDirty) {
@@ -37,10 +43,10 @@ void ImageRendererES3::onNewFrame(const void *data, unsigned width, unsigned hei
 
     glBindTexture(GL_TEXTURE_2D, currentTexture);
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, bytesPerPixel);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch / bytesPerPixel);
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormat, glType, data);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormat, glType, uploadData);
 
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
@@ -113,13 +119,23 @@ void ImageRendererES3::setPixelFormat(int pixelFormat) {
     }
 }
 
-void ImageRendererES3::convertDataFrom0RGB1555(const void *data, unsigned int width, unsigned int height, size_t pitch) const {
-    auto castData = (uint16_t*) data;
+void ImageRendererES3::convertDataFrom0RGB1555ToTemp(
+    const void *data, unsigned int width, unsigned int height, size_t pitch
+) {
+    conversionBuffer.resize(width * height * 2);
+    auto* dst = reinterpret_cast<uint16_t*>(conversionBuffer.data());
 
-    for (int i = 0; i < height * pitch / bytesPerPixel; ++i) {
-        castData[i] = ((0x1Fu) & castData[i])
-            | (((0x1Fu << 5) & castData[i]) << 1)
-            | (((0x1Fu << 10) & castData[i]) << 1);
+    for (unsigned int y = 0; y < height; ++y) {
+        const auto* row = reinterpret_cast<const uint16_t*>(
+            static_cast<const uint8_t*>(data) + pitch * y
+        );
+        uint16_t* dstRow = dst + y * width;
+        for (unsigned int x = 0; x < width; ++x) {
+            uint16_t p = row[x];
+            dstRow[x] = ((p & 0x1Fu))
+                       | ((p & (0x1Fu << 5u)) << 1u)
+                       | ((p & (0x1Fu << 10u)) << 1u);
+        }
     }
 }
 
