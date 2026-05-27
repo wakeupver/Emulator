@@ -334,6 +334,12 @@ class GLRetroView(
         override fun onSurfaceCreated(gl: GL10, config: EGLConfig) = catchExceptions {
             Thread.currentThread().priority = Thread.MAX_PRIORITY
             initializeCore()
+            // If the game was already loaded (e.g. Activity resumed after being backgrounded),
+            // the EGL context may have been recreated. We must call onSurfaceCreated again so
+            // the native side rebuilds its FBOs and fires context_reset to the HW-rendering core.
+            if (isGameLoaded) {
+                LibretroDroid.onSurfaceCreated()
+            }
             lifecycle?.coroutineScope?.launch {
                 retroGLEventsSubject.emit(GLRetroEvents.SurfaceCreated)
             }
@@ -522,6 +528,7 @@ class GLRetroView(
         const val ERROR_CHEAT = LibretroDroid.ERROR_CHEAT
         const val ERROR_GENERIC = LibretroDroid.ERROR_GENERIC
 
-        private val TOUCH_EVENT_OUTSIDE = PointF(-10f, 10f)
+        // Both axes well outside [-1, +1] NDC so the touch is never inside the game viewport.
+        private val TOUCH_EVENT_OUTSIDE = PointF(-10f, -10f)
     }
 }

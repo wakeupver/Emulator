@@ -218,6 +218,10 @@ void LibretroDroid::onSurfaceCreated() {
 
     video = std::unique_ptr<Video>(newVideo);
 
+    // Initialize aspect ratio before calling context_reset so the video layout
+    // is correct from the very first frame the core draws into our FBO.
+    video->updateAspectRatio(getAspectRatio());
+
     if (Environment::getInstance().getHwContextReset() != nullptr) {
         Environment::getInstance().getHwContextReset()();
     }
@@ -481,6 +485,27 @@ void LibretroDroid::step() {
         );
 
         dirtyVideo = true;
+    }
+
+    // SET_SYSTEM_AV_INFO also carries timing changes (fps + sample rate).
+    // Reinitialize FPS sync and audio stream to match the new timing.
+    if (Environment::getInstance().isAvTimingUpdated()) {
+        Environment::getInstance().clearAvTimingUpdated();
+
+        double newFps = Environment::getInstance().getAvTimingFps();
+        double newSampleRate = Environment::getInstance().getAvTimingSampleRate();
+
+        if (newFps > 0 && newSampleRate > 0) {
+            LOGD("AV timing changed: fps=%.2f sampleRate=%.0f — reinitializing audio", newFps, newSampleRate);
+            fpsSync = std::make_unique<FPSSync>(newFps, screenRefreshRate);
+            double adjustedSampleRate = newSampleRate * fpsSync->getTimeStretchFactor();
+            audio = std::make_unique<Audio>(
+                (int32_t) std::lround(adjustedSampleRate),
+                newFps,
+                preferLowLatencyAudio
+            );
+            updateAudioSampleRateMultiplier();
+        }
     }
 
     if (video && Environment::getInstance().isScreenRotationUpdated()) {
