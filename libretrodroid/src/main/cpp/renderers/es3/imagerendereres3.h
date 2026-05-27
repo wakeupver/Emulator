@@ -49,7 +49,7 @@ public:
 private:
     void initializeTextures(unsigned int width, unsigned int height);
     void applyGLSwizzle(int r, int g, int b, int a);
-    void convertDataFrom0RGB1555ToTemp(const void *data, unsigned int width, unsigned int height, size_t pitch);
+    void convertDataFrom0RGB1555(const void *data, unsigned int width, unsigned int height, size_t pitch) const;
 
 private:
     int pixelFormat = RETRO_PIXEL_FORMAT_RGB565;
@@ -65,8 +65,6 @@ private:
 
     ShaderManager::Chain shaders;
     std::unique_ptr<ES3Utils::Framebuffers> framebuffers = std::make_unique<ES3Utils::Framebuffers>();
-
-    std::vector<uint8_t> conversionBuffer;
 };
 
 }

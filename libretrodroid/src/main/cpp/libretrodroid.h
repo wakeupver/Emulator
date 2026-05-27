@@ -109,7 +109,6 @@ public:
 
     void refreshAspectRatio();
     float getAspectRatio();
-    void setAspectRatioOverride(float aspectRatio);
 
     bool requiresVideoRefresh() const;
     void clearRequiresVideoRefresh();
@@ -173,7 +172,6 @@ private:
     ImmersiveMode::Config immersiveModeConfig {};
 
     float defaultAspectRatio = 1.0;
-    float aspectRatioOverride = -1.0f;
     bool dirtyVideo = false;
 
     std::mutex coreLock;

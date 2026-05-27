@@ -44,8 +44,8 @@ public:
     PassData getPassData(unsigned int layer) override;
 
 private:
-    void convertDataFromRGB8888ToTemp(const void* data, unsigned int width, unsigned int height, size_t pitch);
-    void convertDataFrom0RGB1555ToTemp(const void* data, unsigned int width, unsigned int height, size_t pitch);
+    void convertDataFromRGB8888(const void* pixelData, size_t size);
+    void convertDataFrom0RGB1555(const void *data, unsigned int width, unsigned int height, size_t pitch) const;
 
 private:
     int pixelFormat = RETRO_PIXEL_FORMAT_RGB565;
@@ -57,8 +57,6 @@ private:
     bool linear = false;
 
     unsigned int currentTexture = 0;
-
-    std::vector<uint8_t> conversionBuffer;
 };
 
 }

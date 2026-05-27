@@ -38,10 +38,7 @@ FramebufferRenderer::FramebufferRenderer(
 }
 
 void FramebufferRenderer::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
-    // HW cores (e.g. PPSSPP) report display area size (e.g. 480×270) which may differ
-    // from the actual FBO dimensions (e.g. 480×272). Always track the real FBO size so
-    // the textureSize uniform and viewport coordinates are correct.
-    Renderer::onNewFrame(data, this->width, this->height, pitch);
+    Renderer::onNewFrame(data, width, height, pitch);
 
     if (isDirty) {
         initializeBuffers();
@@ -61,15 +58,6 @@ void FramebufferRenderer::initializeBuffers() {
         depth,
         stencil
     );
-
-    // Clear to black so uninitialized GPU memory never shows as garbage pixels.
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->framebuffer);
-    glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
-    GLbitfield clearMask = GL_COLOR_BUFFER_BIT;
-    if (depth)   clearMask |= GL_DEPTH_BUFFER_BIT;
-    if (stencil) clearMask |= GL_STENCIL_BUFFER_BIT;
-    glClear(clearMask);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 uintptr_t FramebufferRenderer::getTexture() {

@@ -16,7 +16,6 @@
  */
 
 #include <GLES2/gl2.h>
-#include <GLES3/gl3.h>
 #include <EGL/egl.h>
 #include <cstdlib>
 #include <string>
@@ -142,52 +141,11 @@ void Video::renderFrame() {
     if (skipDuplicateFrames && !isDirty) return;
     isDirty = false;
 
-    // -----------------------------------------------------------------------
-    // Reset critical GL state that a hardware-rendering core (e.g. PPSSPP)
-    // may have left dirty. Leaving any of these enabled corrupts the shader
-    // passes (blank/transparent UI elements, wrong colours, culled quads).
-    // Reference: RetroArch gl2.c gl2_renderchain_render() state teardown.
-    // -----------------------------------------------------------------------
     glDisable(GL_DEPTH_TEST);
-    glDisable(GL_STENCIL_TEST);
-    glDisable(GL_SCISSOR_TEST);
-    glDisable(GL_BLEND);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_POLYGON_OFFSET_FILL);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-    // Depth mask MUST be GL_TRUE before glClear(GL_DEPTH_BUFFER_BIT) has
-    // any effect. Set it true now; we'll set it false after the clear.
-    glDepthMask(GL_TRUE);
-
-    // PPSSPP (and any GLES 3 HW-rendering core) uses Vertex Array Objects.
-    // In GLES 3, glVertexAttribPointer modifies the *currently bound* VAO,
-    // not the global state. If a non-zero VAO is still bound when we call
-    // glVertexAttribPointer below, our draw will use the wrong attribute
-    // layout and produce no geometry (blank output).
-    // Unbind any VAO so our client-side pointer calls target VAO 0.
-    glBindVertexArray(0);
-
-    // Similarly, unbind VBOs/IBOs so client-side array pointers work.
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-    // Make sure no stale program is active.
-    glUseProgram(0);
-
-    // Reset any leftover texture-unit bindings from the core.
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    // -----------------------------------------------------------------------
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Now disable depth writes for the 2-D shader passes that follow.
-    glDepthMask(GL_FALSE);
 
     if (immersiveModeEnabled) {
         immersiveMode.renderBackground(
@@ -215,20 +173,7 @@ void Video::renderFrame() {
             passData.height.value_or(videoLayout.getScreenHeight())
         );
 
-        // Clear intermediate FBOs to avoid stale pixels leaking into shader passes.
-        if (!isLastPass) {
-            glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
-            glClear(GL_COLOR_BUFFER_BIT);
-        }
-
         glUseProgram(shader.gProgram);
-
-        // Ensure no VAO from the HW core is active — in GLES 3,
-        // glVertexAttribPointer writes into the *bound* VAO. VAO 0 means
-        // client-side arrays, which is what libretrodroid uses.
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
         auto vertices = isLastPass ? videoLayout.getForegroundVertices() : videoLayout.getFramebufferVertices();
         glVertexAttribPointer(shader.gvPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, vertices.data());
@@ -238,28 +183,12 @@ void Video::renderFrame() {
         glVertexAttribPointer(shader.gvCoordinateHandle, 2, GL_FLOAT, GL_FALSE, 0, coordinates.data());
         glEnableVertexAttribArray(shader.gvCoordinateHandle);
 
-        // For passes after the first, the primary "texture" input is the previous pass's
-        // FBO output (if available), not the raw game frame texture.
-        GLuint mainTexture = renderer->getTexture();
-        if (i > 0 && passData.texture.has_value()) {
-            mainTexture = passData.texture.value();
-        }
-
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, mainTexture);
+        glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
         glUniform1i(shader.gTextureHandle, 0);
 
-        // Bind the previous shader-pass output as "previousPass" when the shader requests it.
-        // For pass 0 this is unused; for pass 1+ it provides the preceding FBO result.
         if (shader.gPreviousPassTextureHandle != -1 && passData.texture.has_value()) {
-            // For multi-pass upscalers (CUT2/CUT3), pass 1+ always needs the raw game frame
-            // as the primary texture (pixel colours) and the previous pass data as the metadata
-            // pass. Re-bind the raw game frame to texture0 and the previous FBO to texture1.
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
-            glUniform1i(shader.gTextureHandle, 0);
-
-            glActiveTexture(GL_TEXTURE1);
+            glActiveTexture(GL_TEXTURE0 + 1);
             glBindTexture(GL_TEXTURE_2D, passData.texture.value());
             glUniform1i(shader.gPreviousPassTextureHandle, 1);
         }
@@ -274,7 +203,7 @@ void Video::renderFrame() {
         glDisableVertexAttribArray(shader.gvCoordinateHandle);
 
         if (shader.gPreviousPassTextureHandle != -1 && passData.texture.has_value()) {
-            glActiveTexture(GL_TEXTURE1);
+            glActiveTexture(GL_TEXTURE0 + 1);
             glBindTexture(GL_TEXTURE_2D, 0);
         }
         glActiveTexture(GL_TEXTURE0);
