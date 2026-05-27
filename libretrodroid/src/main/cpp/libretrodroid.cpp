@@ -491,12 +491,22 @@ void LibretroDroid::step() {
 }
 
 float LibretroDroid::getAspectRatio() {
+    if (aspectRatioOverride > 0) {
+        return aspectRatioOverride;
+    }
     float gameAspectRatio = Environment::getInstance().retrieveGameSpecificAspectRatio();
     return gameAspectRatio > 0 ? gameAspectRatio : defaultAspectRatio;
 }
 
 void LibretroDroid::refreshAspectRatio() {
     video->updateAspectRatio(getAspectRatio());
+}
+
+void LibretroDroid::setAspectRatioOverride(float aspectRatio) {
+    aspectRatioOverride = aspectRatio;
+    if (video != nullptr) {
+        refreshAspectRatio();
+    }
 }
 
 void LibretroDroid::setRumbleEnabled(bool enabled) {

@@ -28,31 +28,48 @@ ImageRendererES2::ImageRendererES2() {
 void ImageRendererES2::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
     glBindTexture(GL_TEXTURE_2D, currentTexture);
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, bytesPerPixel);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    if (pixelFormat == RETRO_PIXEL_FORMAT_XRGB8888) {
-        convertDataFromRGB8888(data, pitch * height);
-    } else if (pixelFormat == RETRO_PIXEL_FORMAT_0RGB1555) {
-        convertDataFrom0RGB1555(data, width, height, pitch);
-    }
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, linear ? GL_LINEAR : GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, linear ? GL_LINEAR : GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
+    // Resize/reallocate texture and update filter params only when dimensions change.
     if (lastFrameSize.first != width || lastFrameSize.second != height) {
         glTexImage2D(GL_TEXTURE_2D, 0, glInternalFormat, width, height, 0, glFormat, glType, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, linear ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, linear ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
 
-    // If the given texture has the correct size we just upload it.
-    if (bytesPerPixel * width == pitch) {
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormat, glType, data);
+    if (pixelFormat == RETRO_PIXEL_FORMAT_XRGB8888) {
+        // Cannot modify the core's const buffer in-place; use a temporary buffer.
+        convertDataFromRGB8888ToTemp(data, width, height, pitch);
+        if (bytesPerPixel * width == pitch) {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormat, glType, conversionBuffer.data());
+        } else {
+            for (unsigned int i = 0; i < height; i++) {
+                auto row = conversionBuffer.data() + width * bytesPerPixel * i;
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, width, 1, glFormat, glType, row);
+            }
+        }
+    } else if (pixelFormat == RETRO_PIXEL_FORMAT_0RGB1555) {
+        // Same — convert into temp buffer, do not touch the core's buffer.
+        convertDataFrom0RGB1555ToTemp(data, width, height, pitch);
+        if (bytesPerPixel * width == pitch) {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormat, glType, conversionBuffer.data());
+        } else {
+            for (unsigned int i = 0; i < height; i++) {
+                auto row = conversionBuffer.data() + width * bytesPerPixel * i;
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, width, 1, glFormat, glType, row);
+            }
+        }
     } else {
-        // Here we are forced to take the long and slow way to upload the padded texture.
-        for (int i = 0; i < height; i++) {
-            auto row = (char*) data + (pitch) * i;
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, width, 1, glFormat, glType, row);
+        // RGB565 — upload directly (no conversion needed).
+        if (bytesPerPixel * width == pitch) {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormat, glType, data);
+        } else {
+            for (unsigned int i = 0; i < height; i++) {
+                auto row = (const char*) data + pitch * i;
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, width, 1, glFormat, glType, row);
+            }
         }
     }
 
@@ -61,14 +78,25 @@ void ImageRendererES2::onNewFrame(const void *data, unsigned width, unsigned hei
     Renderer::onNewFrame(data, width, height, pitch);
 }
 
-void ImageRendererES2::convertDataFromRGB8888(const void *data, size_t size) {
-    char* pixelData = (char*) data;
+// Converts XRGB8888 (stored as BGRX in little-endian) → RGBA into conversionBuffer.
+// Does NOT modify the caller's const buffer.
+void ImageRendererES2::convertDataFromRGB8888ToTemp(
+    const void *data, unsigned int width, unsigned int height, size_t pitch
+) {
+    conversionBuffer.resize(width * height * 4);
+    const auto* src = static_cast<const uint8_t*>(data);
+    uint8_t* dst = conversionBuffer.data();
 
-    for (int i = 0; i < size - 4; i += 4) {
-        auto currentRed = pixelData[i + 0];
-        auto currentBlue = pixelData[i + 2];
-        pixelData[i + 0] = currentBlue;
-        pixelData[i + 2] = currentRed;
+    for (unsigned int y = 0; y < height; ++y) {
+        const uint8_t* row = src + pitch * y;
+        for (unsigned int x = 0; x < width; ++x, row += 4, dst += 4) {
+            // Core supplies XRGB8888 (little-endian: B G R X in memory).
+            // Swap R and B so OpenGL ES2 GL_RGBA reads correctly.
+            dst[0] = row[2]; // R
+            dst[1] = row[1]; // G
+            dst[2] = row[0]; // B
+            dst[3] = 0xFF;   // A
+        }
     }
 }
 
@@ -102,13 +130,26 @@ void ImageRendererES2::setPixelFormat(int pixelFormat) {
     }
 }
 
-void ImageRendererES2::convertDataFrom0RGB1555(const void *data, unsigned int width, unsigned int height, size_t pitch) const {
-    auto castData = (uint16_t*) data;
+// Converts 0RGB1555 → RGB565 into conversionBuffer.
+// Does NOT modify the caller's const buffer.
+void ImageRendererES2::convertDataFrom0RGB1555ToTemp(
+    const void *data, unsigned int width, unsigned int height, size_t pitch
+) {
+    conversionBuffer.resize(width * height * 2);
+    auto* dst = reinterpret_cast<uint16_t*>(conversionBuffer.data());
 
-    for (int i = 0; i < height * pitch / bytesPerPixel; ++i) {
-         castData[i] = ((0x1Fu) & castData[i])
-            | (((0x1Fu << 5) & castData[i]) << 1)
-            | (((0x1Fu << 10) & castData[i]) << 1);
+    for (unsigned int y = 0; y < height; ++y) {
+        const auto* row = reinterpret_cast<const uint16_t*>(
+            static_cast<const uint8_t*>(data) + pitch * y
+        );
+        uint16_t* dstRow = dst + y * width;
+        for (unsigned int x = 0; x < width; ++x) {
+            uint16_t p = row[x];
+            // 0RGB1555 → RGB565: shift G and R up by 1 bit.
+            dstRow[x] = ((p & 0x1Fu))
+                       | ((p & (0x1Fu << 5u)) << 1u)
+                       | ((p & (0x1Fu << 10u)) << 1u);
+        }
     }
 }
 
