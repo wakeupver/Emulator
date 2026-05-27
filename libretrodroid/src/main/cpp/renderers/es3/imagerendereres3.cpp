@@ -26,15 +26,6 @@ ImageRendererES3::ImageRendererES3() {
     glBindTexture(GL_TEXTURE_2D, currentTexture);
 }
 
-// Compute the tightest valid GL_UNPACK_ALIGNMENT for a given row byte-width.
-// Mirrors RetroArch's gl2_get_alignment(). GLES requires power-of-two (1/2/4/8).
-static unsigned int glUnpackAlignment(size_t pitchBytes) {
-    if (pitchBytes & 1u) return 1;
-    if (pitchBytes & 2u) return 2;
-    if (pitchBytes & 4u) return 4;
-    return 8;
-}
-
 void ImageRendererES3::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
     const void* uploadData = data;
 
@@ -42,8 +33,7 @@ void ImageRendererES3::onNewFrame(const void *data, unsigned width, unsigned hei
         // Convert into a temporary buffer — do NOT touch the core's const buffer.
         convertDataFrom0RGB1555ToTemp(data, width, height, pitch);
         uploadData = conversionBuffer.data();
-        // After conversion the row stride is tightly packed (width * 2 bytes).
-        pitch = width * bytesPerPixel;
+        pitch = width * bytesPerPixel; // conversion output is tightly packed
     }
 
     if (lastFrameSize.first != width || lastFrameSize.second != height || isDirty) {
@@ -52,7 +42,10 @@ void ImageRendererES3::onNewFrame(const void *data, unsigned width, unsigned hei
 
     glBindTexture(GL_TEXTURE_2D, currentTexture);
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, glUnpackAlignment(pitch));
+    // Use the tightest valid alignment for this row stride (mirrors RetroArch gl2_get_alignment).
+    auto rowBytes = static_cast<size_t>(pitch);
+    unsigned int alignment = (rowBytes & 1u) ? 1 : (rowBytes & 2u) ? 2 : (rowBytes & 4u) ? 4 : 8;
+    glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch / bytesPerPixel);
 
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, glFormat, glType, uploadData);
@@ -128,25 +121,23 @@ void ImageRendererES3::setPixelFormat(int pixelFormat) {
     }
 }
 
+// Converts 0RGB1555 → RGB565 into conversionBuffer.
+// Never touches the core's const data pointer.
+// Fills the extra G LSB from the original G MSB (RetroArch conv_0rgb1555_rgb565 trick).
 void ImageRendererES3::convertDataFrom0RGB1555ToTemp(
     const void *data, unsigned int width, unsigned int height, size_t pitch
 ) {
     conversionBuffer.resize(width * height * 2);
     auto* dst = reinterpret_cast<uint16_t*>(conversionBuffer.data());
-
     for (unsigned int y = 0; y < height; ++y) {
         const auto* row = reinterpret_cast<const uint16_t*>(
-            static_cast<const uint8_t*>(data) + pitch * y
-        );
+            static_cast<const uint8_t*>(data) + pitch * y);
         uint16_t* dstRow = dst + y * width;
         for (unsigned int x = 0; x < width; ++x) {
             uint16_t col = row[x];
-            // Shift R and G up by 1 bit to expand into RGB565.
             uint16_t rg   = (col << 1u) & static_cast<uint16_t>((0x1Fu << 11u) | (0x1Fu << 6u));
             uint16_t b    = col & 0x1Fu;
-            // Fill the new LSB of G from the MSB of the original 5-bit G
-            // (RetroArch conv_0rgb1555_rgb565 trick) to prevent green banding.
-            uint16_t glow = (col >> 4u) & (1u << 5u);
+            uint16_t glow = (col >> 4u) & (1u << 5u); // fill LSB of 6-bit G
             dstRow[x] = rg | b | glow;
         }
     }

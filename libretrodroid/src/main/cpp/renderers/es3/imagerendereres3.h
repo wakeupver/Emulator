@@ -66,7 +66,6 @@ private:
     ShaderManager::Chain shaders;
     std::unique_ptr<ES3Utils::Framebuffers> framebuffers = std::make_unique<ES3Utils::Framebuffers>();
 
-    // Temporary buffer for pixel format conversion (avoids mutating the core's const buffer).
     std::vector<uint8_t> conversionBuffer;
 };
 

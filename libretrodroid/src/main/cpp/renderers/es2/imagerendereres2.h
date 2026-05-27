@@ -58,7 +58,6 @@ private:
 
     unsigned int currentTexture = 0;
 
-    // Temporary buffer for pixel format conversion (avoids mutating the core's const buffer).
     std::vector<uint8_t> conversionBuffer;
 };
 

@@ -115,7 +115,7 @@ std::unique_ptr<ES3Utils::Framebuffers> ES3Utils::buildShaderPasses(
             false
         );
 
-        // Initialize to black so stale GPU memory never bleeds through.
+        // Clear to black so stale GPU memory never bleeds into shader passes.
         glBindFramebuffer(GL_FRAMEBUFFER, data->framebuffer);
         glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
         glClear(GL_COLOR_BUFFER_BIT);

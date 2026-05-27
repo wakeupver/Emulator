@@ -38,12 +38,9 @@ FramebufferRenderer::FramebufferRenderer(
 }
 
 void FramebufferRenderer::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
-    // For HW-rendered cores (e.g. PPSSPP) the core renders into OUR FBO, then
-    // calls retro_video_refresh(RETRO_HW_FRAME_BUFFER_VALID, displayW, displayH, 0).
-    // The reported display size can differ from the actual FBO dimensions
-    // (PPSSPP reports 480x270 for the PSP visible area but its FBO is 480x272).
-    // Always track the ACTUAL FBO size so the textureSize uniform and viewport
-    // coordinates stay accurate. Caller-reported dimensions are advisory only.
+    // HW cores (e.g. PPSSPP) report display area size (e.g. 480×270) which may differ
+    // from the actual FBO dimensions (e.g. 480×272). Always track the real FBO size so
+    // the textureSize uniform and viewport coordinates are correct.
     Renderer::onNewFrame(data, this->width, this->height, pitch);
 
     if (isDirty) {
@@ -65,8 +62,7 @@ void FramebufferRenderer::initializeBuffers() {
         stencil
     );
 
-    // Clear the newly created FBO so it starts with known black pixels instead of
-    // whatever garbage memory happened to be in the GPU allocation.
+    // Clear to black so uninitialized GPU memory never shows as garbage pixels.
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->framebuffer);
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
     GLbitfield clearMask = GL_COLOR_BUFFER_BIT;
