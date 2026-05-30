@@ -174,15 +174,18 @@ class GameLoader(
         context: Context,
         coreID: CoreID,
     ): File? {
-        val files =
-            sequenceOf(
-                File(context.applicationInfo.nativeLibraryDir),
-                context.filesDir,
-            )
+        val targetName = coreID.libretroFileName
 
-        return files
-            .flatMap { it.walkBottomUp() }
-            .firstOrNull { it.name == coreID.libretroFileName }
+        // nativeLibraryDir is always a single flat directory — listFiles() is O(N) instead of a
+        // full recursive walk, which avoids redundant stat() calls on a directory with no sub-dirs.
+        val nativeMatch =
+            File(context.applicationInfo.nativeLibraryDir)
+                .listFiles()
+                ?.firstOrNull { it.name == targetName }
+        if (nativeMatch != null) return nativeMatch
+
+        // filesDir may contain downloaded cores in sub-directories, so we keep walkBottomUp here.
+        return context.filesDir.walkBottomUp().firstOrNull { it.name == targetName }
     }
 
     @Suppress("ArrayInDataClass")

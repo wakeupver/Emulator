@@ -20,7 +20,28 @@ class DirectoriesManager(private val appContext: Context) {
     // otherwise fall back silently to getExternalFilesDir(null).
     // -------------------------------------------------------------------------
 
+    /**
+     * One-shot cache for the resolved base directory.
+     *
+     * [resolveBase] reads SharedPreferences and optionally calls [File.exists] / [File.canWrite]
+     * on every invocation. Since multiple directory accessors ([getSavesDirectory],
+     * [getStatesDirectory], [getSystemDirectory] …) are called in rapid succession during game
+     * loading, caching eliminates N redundant preference reads and filesystem calls per load.
+     *
+     * The cache is invalidated by [saveBaseDir] — the only code path that mutates the preference.
+     */
+    @Volatile private var cachedBase: File? = null
+
     private fun resolveBase(): File {
+        // Fast path — already resolved.
+        cachedBase?.let { return it }
+
+        val resolved = computeBase()
+        cachedBase = resolved
+        return resolved
+    }
+
+    private fun computeBase(): File {
         val path = PreferenceManager.getDefaultSharedPreferences(appContext)
             .getString(PREF_KEY_CUSTOM_BASE_DIR, null)
 
@@ -95,6 +116,8 @@ class DirectoriesManager(private val appContext: Context) {
             .edit()
             .putString(PREF_KEY_CUSTOM_BASE_DIR, path?.takeIf { it.isNotBlank() })
             .apply()
+        // Invalidate cached value so the next directory access recomputes from preferences.
+        cachedBase = null
     }
 
     companion object {

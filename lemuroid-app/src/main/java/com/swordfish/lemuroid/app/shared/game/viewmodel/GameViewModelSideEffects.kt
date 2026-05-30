@@ -2,12 +2,10 @@ package com.swordfish.lemuroid.app.shared.game.viewmodel
 
 import com.swordfish.touchinput.radial.sensors.TiltConfiguration
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class GameViewModelSideEffects(private val scope: CoroutineScope) {
     sealed interface UiEffect {
@@ -31,16 +29,14 @@ class GameViewModelSideEffects(private val scope: CoroutineScope) {
 
     private val uiEffects = MutableSharedFlow<UiEffect>()
 
-    fun getUiEffects(): Flow<UiEffect> {
-        return uiEffects
-    }
+    fun getUiEffects(): Flow<UiEffect> = uiEffects
+
+    // MutableSharedFlow.emit is a coroutine-safe suspend function that does not require
+    // the Android main thread. Collectors handle their own thread dispatch. Removing the
+    // previous withContext(Dispatchers.Main) wrapper eliminates one context-switch per event.
 
     fun showToast(message: String) {
-        scope.launch {
-            withContext(Dispatchers.Main) {
-                uiEffects.emit(UiEffect.ShowToast(message))
-            }
-        }
+        scope.launch { uiEffects.emit(UiEffect.ShowToast(message)) }
     }
 
     fun showMenu(
@@ -50,50 +46,27 @@ class GameViewModelSideEffects(private val scope: CoroutineScope) {
         scope.launch {
             val currentTiltConfiguration = tilt.getTiltConfiguration().firstOrNull() ?: return@launch
             val tiltConfigurations = inputs.getAllTiltConfigurations()
-
-            withContext(Dispatchers.Main) {
-                uiEffects.emit(UiEffect.ShowMenu(currentTiltConfiguration, tiltConfigurations))
-            }
+            uiEffects.emit(UiEffect.ShowMenu(currentTiltConfiguration, tiltConfigurations))
         }
     }
 
     fun loadQuickSave() {
-        scope.launch {
-            withContext(Dispatchers.Main) {
-                uiEffects.emit(UiEffect.LoadQuickSave)
-            }
-        }
+        scope.launch { uiEffects.emit(UiEffect.LoadQuickSave) }
     }
 
     fun requestSuccessfulFinish() {
-        scope.launch {
-            withContext(Dispatchers.Main) {
-                uiEffects.emit(UiEffect.SuccessfulFinish)
-            }
-        }
+        scope.launch { uiEffects.emit(UiEffect.SuccessfulFinish) }
     }
 
     fun requestFailureFinish(message: String) {
-        scope.launch {
-            withContext(Dispatchers.Main) {
-                uiEffects.emit(UiEffect.FailureFinish(message))
-            }
-        }
+        scope.launch { uiEffects.emit(UiEffect.FailureFinish(message)) }
     }
 
     fun saveQuickSave() {
-        scope.launch {
-            withContext(Dispatchers.Main) {
-                uiEffects.emit(UiEffect.SaveQuickSave)
-            }
-        }
+        scope.launch { uiEffects.emit(UiEffect.SaveQuickSave) }
     }
 
     fun toggleFastForward() {
-        scope.launch {
-            withContext(Dispatchers.Main) {
-                uiEffects.emit(UiEffect.ToggleFastForward)
-            }
-        }
+        scope.launch { uiEffects.emit(UiEffect.ToggleFastForward) }
     }
 }

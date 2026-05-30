@@ -56,11 +56,12 @@ class SavesManager(private val directoriesManager: DirectoriesManager) {
         }
     }
 
-    private suspend fun getSaveFile(fileName: String): File {
-        return withContext(Dispatchers.IO) {
-            val savesDirectory = directoriesManager.getSavesDirectory()
-            File(savesDirectory, fileName)
-        }
+    private fun getSaveFile(fileName: String): File {
+        // directoriesManager.getSavesDirectory() is cheap (File path construction + mkdirs).
+        // All callers already run inside withContext(Dispatchers.IO), so there is no need
+        // to add another dispatcher switch just to build a File object.
+        val savesDirectory = directoriesManager.getSavesDirectory()
+        return File(savesDirectory, fileName)
     }
 
     /** This name should make it compatible with RetroArch so that users can freely sync saves across the two application. */

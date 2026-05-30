@@ -12,8 +12,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 class StatesManager(private val directoriesManager: DirectoriesManager) {
+
+    /**
+     * Tracks which per-core state directories have already been created this session.
+     * ConcurrentHashMap.newKeySet() gives O(1) amortised add/contains without blocking.
+     *
+     * Previously both [getStateFile] and [getMetadataStateFile] each called [File.mkdirs]
+     * on every read AND write, so a single [setSaveState] triggered mkdirs() twice even
+     * though the directory already existed from the previous save.
+     */
+    private val createdDirs = ConcurrentHashMap.newKeySet<String>()
+
     suspend fun getSlotSave(
         game: Game,
         coreID: CoreID,
@@ -122,23 +134,28 @@ class StatesManager(private val directoriesManager: DirectoriesManager) {
         saveFile.writeBytesCompressedAtomic(stateArray)
     }
 
+    /**
+     * Returns the per-core states directory, running [mkdirs] only on the first access
+     * for each unique [coreName]. Subsequent calls are a hash-set lookup — no I/O.
+     */
+    private fun ensureStatesDir(coreName: String): File {
+        val dir = File(directoriesManager.getStatesDirectory(), coreName)
+        // ConcurrentHashSet.add() returns true only on the first insertion.
+        if (createdDirs.add(dir.absolutePath)) {
+            dir.mkdirs()
+        }
+        return dir
+    }
+
     private fun getStateFile(
         fileName: String,
         coreName: String,
-    ): File {
-        val statesDirectories = File(directoriesManager.getStatesDirectory(), coreName)
-        statesDirectories.mkdirs()
-        return File(statesDirectories, fileName)
-    }
+    ): File = File(ensureStatesDir(coreName), fileName)
 
     private fun getMetadataStateFile(
         stateFileName: String,
         coreName: String,
-    ): File {
-        val statesDirectories = File(directoriesManager.getStatesDirectory(), coreName)
-        statesDirectories.mkdirs()
-        return File(statesDirectories, "$stateFileName.metadata")
-    }
+    ): File = File(ensureStatesDir(coreName), "$stateFileName.metadata")
 
     private fun getAutoSaveFileName(game: Game) = "${game.fileName}.state"
 

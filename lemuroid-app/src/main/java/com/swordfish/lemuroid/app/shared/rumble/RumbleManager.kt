@@ -10,7 +10,6 @@ import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.common.coroutines.safeCollect
 import com.swordfish.lemuroid.lib.library.SystemCoreConfig
 import com.swordfish.libretrodroid.RumbleEvent
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -19,17 +18,19 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.newSingleThreadContext
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class RumbleManager(
     applicationContext: Context,
     private val settingsManager: SettingsManager,
     private val inputDeviceManager: InputDeviceManager,
 ) {
     private val deviceVibrator = applicationContext.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-    private val rumbleContext = newSingleThreadContext("Rumble")
+
+    // limitedParallelism(1) gives single-threaded ordering without leaking a permanent OS thread
+    // the way newSingleThreadContext("Rumble") did.
+    private val rumbleContext = kotlinx.coroutines.Dispatchers.Default.limitedParallelism(1)
 
     suspend fun collectAndProcessRumbleEvents(
         systemCoreConfig: SystemCoreConfig,
@@ -38,7 +39,10 @@ class RumbleManager(
         val enableRumble = settingsManager.enableRumble()
         val rumbleSupported = systemCoreConfig.rumbleSupported
 
-        if (!enableRumble && rumbleSupported) {
+        // Skip the pipeline if the user disabled rumble OR the core does not support it.
+        // Previously this used && (AND) which would still run the pipeline when rumble is
+        // disabled for a core that doesn't support it at all — pure wasted work.
+        if (!enableRumble || !rumbleSupported) {
             return
         }
 

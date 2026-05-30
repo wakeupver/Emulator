@@ -39,10 +39,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.abs
@@ -239,12 +237,11 @@ class GameViewModelInput(
             initializeGamePadKeysFlow()
         }
 
+        // Single subscription handles both stick-motion forwarding and axis-to-key conversion.
+        // Previously two separate coroutines each independently combined getGamePadsPortMapperObservable()
+        // with motionEventsFlow, causing every motion event to be processed twice upstream.
         owner.launchOnState(Lifecycle.State.CREATED) {
-            initializeVirtualGamePadMotionsFlow()
-        }
-
-        owner.launchOnState(Lifecycle.State.CREATED) {
-            initializeGamePadMotionsFlow()
+            initializeMotionFlows()
         }
 
         owner.launchOnState(Lifecycle.State.RESUMED) {
@@ -336,53 +333,52 @@ class GameViewModelInput(
             }
     }
 
-    private suspend fun initializeVirtualGamePadMotionsFlow() {
-        val events =
-            combine(
-                inputDeviceManager.getGamePadsPortMapperObservable(),
-                motionEventsFlow,
-                ::NTuple2,
-            )
+    /**
+     * Handles all physical gamepad motion events in a single upstream subscription.
+     *
+     * Previously [initializeVirtualGamePadMotionsFlow] and [initializeGamePadMotionsFlow]
+     * independently combined [InputDeviceManager.getGamePadsPortMapperObservable] with
+     * [motionEventsFlow], so every MotionEvent was processed twice — once for stick forwarding
+     * and once for axis-to-key conversion. Now a single combine drives both code paths.
+     *
+     * - Stick/DPAD motions are forwarded to [GLRetroView] via [sendStickMotions].
+     * - Axis values above the 0.5 threshold are translated to discrete KeyEvents for virtual
+     *   gamepads (e.g. a joystick axis acting as a D-pad button). Only state *changes* are
+     *   emitted — identical to the original [scan]-based approach.
+     */
+    private suspend fun initializeMotionFlows() {
+        var prevAxisState = emptySet<SingleAxisEvent>()
 
-        events
-            .mapNotNull { (ports, event) ->
-                ports(event.device)?.let { it to event }
-            }
-            .map { (port, event) ->
-                val axes = event.device.getInputClass().getAxesMap().entries
+        combine(
+            inputDeviceManager.getGamePadsPortMapperObservable(),
+            motionEventsFlow,
+            ::NTuple2,
+        )
+            .safeCollect { (ports, event) ->
+                val port = ports(event.device) ?: return@safeCollect
 
-                axes.map { (axis, button) ->
-                    val action =
-                        if (event.getAxisValue(axis) > 0.5) {
-                            KeyEvent.ACTION_DOWN
-                        } else {
-                            KeyEvent.ACTION_UP
-                        }
-                    SingleAxisEvent(axis, action, button, port)
-                }.toSet()
-            }
-            .scan(emptySet<SingleAxisEvent>()) { prev, next ->
-                next.minus(prev).forEach {
+                // 1. Forward analog stick / DPAD motion to the retro core.
+                sendStickMotions(event, port)
+
+                // 2. Translate analog axis values to discrete key-down / key-up events so
+                //    that axes can act as buttons on virtual gamepads.
+                val nextAxisState =
+                    event.device.getInputClass().getAxesMap().entries
+                        .map { (axis, button) ->
+                            val action =
+                                if (event.getAxisValue(axis) > 0.5) {
+                                    KeyEvent.ACTION_DOWN
+                                } else {
+                                    KeyEvent.ACTION_UP
+                                }
+                            SingleAxisEvent(axis, action, button, port)
+                        }.toSet()
+
+                // Only fire events for axes whose state has changed since the last event.
+                nextAxisState.minus(prevAxisState).forEach {
                     retroGameView.retroGameView?.sendKeyEvent(it.action, it.keyCode, it.port)
                 }
-                next
-            }
-            .safeCollect { }
-    }
-
-    private suspend fun initializeGamePadMotionsFlow() {
-        val events =
-            combine(
-                inputDeviceManager.getGamePadsPortMapperObservable(),
-                motionEventsFlow,
-                ::NTuple2,
-            )
-
-        events
-            .safeCollect { (ports, event) ->
-                ports(event.device)?.let {
-                    sendStickMotions(event, it)
-                }
+                prevAxisState = nextAxisState
             }
     }
 
