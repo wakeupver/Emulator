@@ -48,6 +48,18 @@ const uint8_t lr_char_props[256] = {
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, /* Fx                  */
 };
 
+char *string_init(const char *src)
+{
+   return src ? strdup(src) : NULL;
+}
+
+void string_set(char **string, const char *src)
+{
+   free(*string);
+   *string = string_init(src);
+}
+
+
 char *string_to_upper(char *s)
 {
    char *cs = (char *)s;
@@ -67,13 +79,9 @@ char *string_to_lower(char *s)
 char *string_ucwords(char *s)
 {
    char *cs = (char *)s;
-
-   if (!s || *s == '\0')
-      return s;
-
    for ( ; *cs != '\0'; cs++)
    {
-      if (*cs == ' ' && *(cs + 1) != '\0')
+      if (*cs == ' ')
          *(cs+1) = toupper((unsigned char)*(cs+1));
    }
 
@@ -81,12 +89,11 @@ char *string_ucwords(char *s)
    return s;
 }
 
-char *string_replace_substring(
-      const char *in,          size_t in_len,
-      const char *pattern,     size_t pattern_len,
+char *string_replace_substring(const char *in,
+      const char *pattern, size_t pattern_len,
       const char *replacement, size_t replacement_len)
 {
-   size_t _len;
+   size_t outlen;
    size_t numhits     = 0;
    const char *inat   = NULL;
    const char *inprev = NULL;
@@ -106,9 +113,9 @@ char *string_replace_substring(
       numhits++;
    }
 
-   _len = in_len - pattern_len * numhits + replacement_len*numhits;
+   outlen          = strlen(in) - pattern_len*numhits + replacement_len*numhits;
 
-   if (!(out = (char *)malloc(_len + 1)))
+   if (!(out = (char *)malloc(outlen+1)))
       return NULL;
 
    outat           = out;
@@ -124,9 +131,7 @@ char *string_replace_substring(
       inat  += pattern_len;
       inprev = inat;
    }
-
-   _len = (in + in_len) - inprev;
-   strlcpy(outat, inprev, _len + 1);
+   strcpy(outat, inprev);
 
    return out;
 }
@@ -140,15 +145,19 @@ char *string_trim_whitespace_left(char *const s)
 {
    if (s && *s)
    {
+      size_t len     = strlen(s);
       char *current  = s;
-      while (*current && (*current == ' ' || *current == '\t' || *current == '\n' || *current == '\r' || *current == '\v' || *current == '\f'))
-         ++current;
-      if (s != current)
+
+      while (*current && ISSPACE((unsigned char)*current))
       {
-         size_t _len = strlen(current);
-         memmove(s, current, _len + 1);
+         ++current;
+         --len;
       }
+
+      if (s != current)
+         memmove(s, current, len + 1);
    }
+
    return s;
 }
 
@@ -161,13 +170,13 @@ char *string_trim_whitespace_right(char *const s)
 {
    if (s && *s)
    {
-      size_t _len    = strlen(s);
-      char  *current = s + _len - 1;
+      size_t len     = strlen(s);
+      char  *current = s + len - 1;
 
       while (current != s && ISSPACE((unsigned char)*current))
       {
          --current;
-         --_len;
+         --len;
       }
 
       current[ISSPACE((unsigned char)*current) ? 0 : 1] = '\0';
@@ -191,8 +200,8 @@ char *string_trim_whitespace(char *const s)
 
 /**
  * word_wrap:
- * @s                  : pointer to destination buffer.
- * @len                : size of destination buffer.
+ * @dst                : pointer to destination buffer.
+ * @dst_size           : size of destination buffer.
  * @src                : pointer to input string.
  * @line_width         : max number of characters per line.
  * @wideglyph_width    : not used, but is necessary to keep
@@ -200,8 +209,8 @@ char *string_trim_whitespace(char *const s)
  * @max_lines          : max lines of destination string.
  *                       0 means no limit.
  *
- * Wraps string specified by @src to destination buffer
- * specified by @s and @len.
+ * Wraps string specified by 'src' to destination buffer
+ * specified by 'dst' and 'dst_size'.
  * This function assumes that all glyphs in the string
  * have an on-screen pixel width similar to that of
  * regular Latin characters - i.e. it will not wrap
@@ -209,7 +218,7 @@ char *string_trim_whitespace(char *const s)
  * characters (e.g. CJK languages, emojis, etc.).
  **/
 size_t word_wrap(
-      char *s,         size_t len,
+      char *dst,       size_t dst_size,
       const char *src, size_t src_len,
       int line_width,  int wideglyph_width, unsigned max_lines)
 {
@@ -217,17 +226,15 @@ size_t word_wrap(
    unsigned counter    = 0;
    unsigned lines      = 1;
    const char *src_end = src + src_len;
-   char *s_start       = s;
-   size_t _len         = len;
 
    /* Prevent buffer overflow */
-   if (len < src_len + 1)
+   if (dst_size < src_len + 1)
       return 0;
 
    /* Early return if src string length is less
     * than line width */
    if (src_len < (size_t)line_width)
-      return strlcpy(s, src, len);
+      return strlcpy(dst, src, dst_size);
 
    while (*src != '\0')
    {
@@ -235,7 +242,7 @@ size_t word_wrap(
       counter++;
 
       if (*src == ' ')
-         last_space = s; /* Remember the location of the whitespace */
+         last_space = dst; /* Remember the location of the whitespace */
       else if (*src == '\n')
       {
          /* If newlines embedded in the input,
@@ -246,14 +253,11 @@ size_t word_wrap(
          /* Early return if remaining src string
           * length is less than line width */
          if (src_end - src <= line_width)
-         {
-            _len = len - (size_t)(s - s_start);
-            return (size_t)(s - s_start) + strlcpy(s, src, _len);
-         }
-      }
+            return strlcpy(dst, src, dst_size);
+     }
 
       while (char_len--)
-         *s++ = *src++;
+         *dst++ = *src++;
 
       if (counter >= (unsigned)line_width)
       {
@@ -266,29 +270,26 @@ size_t word_wrap(
             *last_space = '\n';
             lines++;
 
-            src        -= s - last_space - 1;
-            s           = last_space + 1;
+            src        -= dst - last_space - 1;
+            dst         = last_space + 1;
             last_space  = NULL;
 
             /* Early return if remaining src string
              * length is less than line width */
             if (src_end - src < line_width)
-            {
-               _len = len - (size_t)(s - s_start);
-               return (size_t)(s - s_start) + strlcpy(s, src, _len);
-            }
+               return strlcpy(dst, src, dst_size);
          }
       }
    }
 
-   *s = '\0';
-   return (size_t)(s - s_start);
+   *dst = '\0';
+   return 0;
 }
 
 /**
  * word_wrap_wideglyph:
  * @dst                : pointer to destination buffer.
- * @len                : size of destination buffer.
+ * @dst_size           : size of destination buffer.
  * @src                : pointer to input string.
  * @line_width         : max number of characters per line.
  * @wideglyph_width    : effective width of 'wide' Unicode glyphs.
@@ -306,7 +307,7 @@ size_t word_wrap(
  *                       0 means no limit.
  *
  * Wraps string specified by @src to destination buffer
- * specified by @dst and @len.
+ * specified by @dst and @dst_size.
  * This function assumes that all glyphs in the string
  * are:
  * - EITHER 'non-wide' Unicode glyphs, with an on-screen
@@ -318,14 +319,13 @@ size_t word_wrap(
  * on-screen pixel width deviates greatly from the set
  * @wideglyph_width value.
  **/
-size_t word_wrap_wideglyph(char *s, size_t len,
+size_t word_wrap_wideglyph(char *dst, size_t dst_size,
       const char *src, size_t src_len, int line_width,
       int wideglyph_width, unsigned max_lines)
 {
    char *lastspace                   = NULL;
    char *lastwideglyph               = NULL;
    const char *src_end               = src + src_len;
-   char *s_start                     = s;
    unsigned lines                    = 1;
    /* 'line_width' means max numbers of characters per line,
     * but this metric is only meaningful when dealing with
@@ -353,43 +353,21 @@ size_t word_wrap_wideglyph(char *s, size_t len,
    int additional_counter_normalized = wideglyph_width - 100;
 
    /* Early return if src string length is less
-    * than line width.
-    *
-    * NOTE on the strlcpy clamp: strlcpy returns strlen(src),
-    * which exceeds bytes-actually-written if the destination
-    * was too small (truncation case).  Callers (xmb, ozone,
-    * materialui messagebox helpers) use the returned value as
-    * the length argument to memchr() over the destination
-    * buffer; an inflated return walks memchr past the buffer
-    * end into adjacent stack memory.  Clamp the return to the
-    * true bytes-written count: min(strlen(src), len - 1). */
+    * than line width */
    if (src_end - src < line_width)
-   {
-      size_t copied = strlcpy(s, src, len);
-      if (copied >= len)
-         copied = (len > 0) ? len - 1 : 0;
-      return copied;
-   }
+      return strlcpy(dst, src, dst_size);
 
    while (*src != '\0')
    {
-      size_t remaining;
       unsigned char_len   = (unsigned)(utf8skip(src, 1) - src);
       counter_normalized += 100;
 
-      /* Prevent buffer overflow.  `remaining` is computed from
-       * the original `len` and the current write offset rather
-       * than tracking it via `len -= char_len` -- the rewinds
-       * at lastspace/lastwideglyph below move `s` backwards
-       * without a matching `len += ...`, which would otherwise
-       * desync the two and break the buffer-space accounting
-       * for the early-return strlcpys. */
-      remaining = len - (size_t)(s - s_start);
-      if (char_len >= remaining)
+      /* Prevent buffer overflow */
+      if (char_len >= dst_size)
          break;
 
       if (*src == ' ')
-         lastspace          = s; /* Remember the location of the whitespace */
+         lastspace          = dst; /* Remember the location of the whitespace */
       else if (*src == '\n')
       {
          /* If newlines embedded in the input,
@@ -400,23 +378,19 @@ size_t word_wrap_wideglyph(char *s, size_t len,
          /* Early return if remaining src string
           * length is less than line width */
          if (src_end - src <= line_width)
-         {
-            size_t copied = strlcpy(s, src, remaining);
-            if (copied >= remaining)
-               copied = (remaining > 0) ? remaining - 1 : 0;
-            return (size_t)(s - s_start) + copied;
-         }
+            return strlcpy(dst, src, dst_size);
       }
       else if (char_len >= 3)
       {
          /* Remember the location of the first byte
           * whose length as UTF-8 >= 3*/
-         lastwideglyph       = s;
+         lastwideglyph       = dst;
          counter_normalized += additional_counter_normalized;
       }
 
+      dst_size -= char_len;
       while (char_len--)
-         *s++ = *src++;
+         *dst++ = *src++;
 
       if (counter_normalized >= (unsigned)line_width_normalized)
       {
@@ -424,27 +398,19 @@ size_t word_wrap_wideglyph(char *s, size_t len,
 
          if (max_lines != 0 && lines >= max_lines)
             continue;
-         else if (lastwideglyph 
-              && (!lastspace || lastwideglyph > lastspace))
+         else if (lastwideglyph && (!lastspace || lastwideglyph > lastspace))
          {
             /* Insert newline character */
             *lastwideglyph = '\n';
             lines++;
-            src           -= s - lastwideglyph;
-            s              = lastwideglyph + 1;
+            src           -= dst - lastwideglyph;
+            dst            = lastwideglyph + 1;
             lastwideglyph  = NULL;
 
             /* Early return if remaining src string
              * length is less than line width */
             if (src_end - src <= line_width)
-            {
-               size_t copied;
-               remaining = len - (size_t)(s - s_start);
-               copied    = strlcpy(s, src, remaining);
-               if (copied >= remaining)
-                  copied = (remaining > 0) ? remaining - 1 : 0;
-               return (size_t)(s - s_start) + copied;
-            }
+               return strlcpy(dst, src, dst_size);
          }
          else if (lastspace)
          {
@@ -452,33 +418,26 @@ size_t word_wrap_wideglyph(char *s, size_t len,
              * with newline character */
             *lastspace = '\n';
             lines++;
-            src       -= s - lastspace - 1;
-            s          = lastspace + 1;
+            src       -= dst - lastspace - 1;
+            dst        = lastspace + 1;
             lastspace  = NULL;
 
             /* Early return if remaining src string
              * length is less than line width */
             if (src_end - src < line_width)
-            {
-               size_t copied;
-               remaining = len - (size_t)(s - s_start);
-               copied    = strlcpy(s, src, remaining);
-               if (copied >= remaining)
-                  copied = (remaining > 0) ? remaining - 1 : 0;
-               return (size_t)(s - s_start) + copied;
-            }
+               return strlcpy(dst, src, dst_size);
          }
       }
    }
 
-   *s = '\0';
-   return (size_t)(s - s_start);
+   *dst = '\0';
+   return 0;
 }
 
 /**
  * string_tokenize:
  *
- * Splits string into tokens separated by @delim
+ * Splits string into tokens seperated by @delim
  * > Returned token string must be free()'d
  * > Returns NULL if token is not found
  * > After each call, @str is set to the position after the
@@ -501,81 +460,73 @@ char* string_tokenize(char **str, const char *delim)
    char *str_ptr    = NULL;
    char *delim_ptr  = NULL;
    char *token      = NULL;
-   size_t _len      = 0;
-   size_t delim_len = 0;
+   size_t token_len = 0;
 
    /* Sanity checks */
-   if (!str || !delim || !*delim)
+   if (!str || string_is_empty(delim))
       return NULL;
 
-   /* Note: we don't check if string is empty here,
+
+   /* Note: we don't check string_is_empty() here,
     * empty strings are valid */
    if (!(str_ptr = *str))
       return NULL;
 
-   delim_len = strlen(delim);
-
    /* Search for delimiter */
    if ((delim_ptr = strstr(str_ptr, delim)))
-      _len = delim_ptr - str_ptr;
+      token_len = delim_ptr - str_ptr;
    else
-      _len = strlen(str_ptr);
+      token_len = strlen(str_ptr);
 
    /* Allocate token string */
-   if (!(token = (char *)malloc((_len + 1) * sizeof(char))))
+   if (!(token = (char *)malloc((token_len + 1) * sizeof(char))))
       return NULL;
 
-   /* Copy token.  strlcpy already NUL-terminates within the
-    * `_len + 1` byte limit -- _len is bounded above by
-    * strlen(str_ptr) (computed at lines 489-492), so the
-    * terminator lands exactly at token[_len] without needing
-    * a separate write here.  The redundant token[_len] = '\0'
-    * also tripped -Wstringop-overflow under some gcc
-    * configurations (the analyser couldn't constrain _len
-    * relative to the malloc'd size). */
-   strlcpy(token, str_ptr, (_len + 1) * sizeof(char));
+   /* Copy token */
+   strlcpy(token, str_ptr, (token_len + 1) * sizeof(char));
+   token[token_len] = '\0';
+
    /* Update input string pointer */
-   *str = delim_ptr ? delim_ptr + delim_len : NULL;
+   *str = delim_ptr ? delim_ptr + strlen(delim) : NULL;
+
    return token;
 }
 
 /**
  * string_remove_all_chars:
- * @s                 : input string (must be non-NULL, otherwise UB)
+ * @str                : input string (must be non-NULL, otherwise UB)
  *
  * Leaf function.
  *
- * Removes every instance of character @c from @s
- *
- * Returns the length of the resulting string.
+ * Removes every instance of character @c from @str
  **/
-size_t string_remove_all_chars(char *s, char c)
+void string_remove_all_chars(char *str, char c)
 {
-   char *dst = s;
-   char *src = s;
-   while (*src)
+   char *read_ptr  = str;
+   char *write_ptr = str;
+
+   while (*read_ptr != '\0')
    {
-      /* Only write if the character is not the one to remove */
-      if (*src != c)
-         *dst++ = *src;
-      src++;
+      *write_ptr = *read_ptr++;
+      if (*write_ptr != c)
+         write_ptr++;
    }
-   *dst = '\0';
-   return (size_t)(dst - s);
+
+   *write_ptr = '\0';
 }
 
 /**
  * string_replace_all_chars:
- * @s                  : input string (must be non-NULL, otherwise UB)
+ * @str                : input string (must be non-NULL, otherwise UB)
  * @find               : character to find
  * @replace            : character to replace @find with
  *
- * Replaces every instance of character @find in @s
+ * Replaces every instance of character @find in @str
  * with character @replace
  **/
-void string_replace_all_chars(char *s, char find, char replace)
+void string_replace_all_chars(char *str, char find, char replace)
 {
-   char *str_ptr = s;
+   char *str_ptr = str;
    while ((str_ptr = strchr(str_ptr, find)))
       *str_ptr++ = replace;
 }
@@ -592,7 +543,7 @@ unsigned string_to_unsigned(const char *str)
 {
    const char *ptr = NULL;
 
-   if (!str || !*str)
+   if (string_is_empty(str))
       return 0;
 
    for (ptr = str; *ptr != '\0'; ptr++)
@@ -618,17 +569,20 @@ unsigned string_hex_to_unsigned(const char *str)
    const char *hex_str = str;
    const char *ptr     = NULL;
 
-   if (!str || !*str)
-      return 0;
-
-   /* Remove leading '0x', if present */
-   if (   str[0] == '0'
-       && (str[1] == 'x' || str[1] == 'X'))
+   /* Remove leading '0x', if required */
+   if (str[0] != '\0' && str[1] != '\0')
    {
-      hex_str = str + 2;
-      if (!hex_str || !*hex_str)
-         return 0;
+      if ( (str[0] == '0') &&
+          ((str[1] == 'x') ||
+           (str[1] == 'X')))
+      {
+         hex_str = str + 2;
+         if (string_is_empty(hex_str))
+            return 0;
+      }
    }
+   else
+      return 0;
 
    /* Check for valid characters */
    for (ptr = hex_str; *ptr != '\0'; ptr++)
@@ -667,11 +621,11 @@ int string_count_occurrences_single_character(const char *str, char c)
  *
  * Replaces all spaces with given character @c.
  **/
-void string_replace_whitespace_with_single_character(char *s, char c)
+void string_replace_whitespace_with_single_character(char *str, char c)
 {
-   for (; *s; s++)
-      if (ISSPACE((unsigned char)*s))
-         *s = c;
+   for (; *str; str++)
+      if (ISSPACE(*str))
+         *str = c;
 }
 
 /**
@@ -681,18 +635,18 @@ void string_replace_whitespace_with_single_character(char *s, char c)
  *
  * Replaces multiple spaces with a single space in a string.
  **/
-void string_replace_multi_space_with_single_space(char *s)
+void string_replace_multi_space_with_single_space(char *str)
 {
-   char *str_trimmed  = s;
+   char *str_trimmed  = str;
    bool prev_is_space = false;
    bool curr_is_space = false;
 
-   for (; *s; s++)
+   for (; *str; str++)
    {
-      curr_is_space  = ISSPACE((unsigned char)*s);
+      curr_is_space  = ISSPACE(*str);
       if (prev_is_space && curr_is_space)
          continue;
-      *str_trimmed++ = *s;
+      *str_trimmed++ = *str;
       prev_is_space  = curr_is_space;
    }
    *str_trimmed = '\0';
@@ -704,65 +658,17 @@ void string_replace_multi_space_with_single_space(char *s)
  * Leaf function.
  *
  * Remove all spaces from the given string.
- * Returns the length of the resulting string.
  **/
-size_t string_remove_all_whitespace(char *s, const char *str)
+void string_remove_all_whitespace(char *str_trimmed, const char *str)
 {
-   char *start = (char*)s;
    for (; *str; str++)
-      if (!ISSPACE((unsigned char)*str))
-         *s++ = *str;
-   *s = '\0';
-   return s - start;
+      if (!ISSPACE(*str))
+         *str_trimmed++ = *str;
+   *str_trimmed = '\0';
 }
 
 /**
- * strlcpy_append:
- *
- * See header (libretro-common/include/string/stdstring.h) for the
- * full contract.  Bound-checked append; advances *pos by
- * strlen(@src) on success, returns -1 on truncation.
- *
- * Truncation is signalled when *pos >= len already, or when
- * strlcpy returns a value >= the remaining capacity.  In either
- * case the destination is left NUL-terminated (strlcpy guarantees
- * this when its size argument is non-zero) and *pos is clamped to
- * len - 1 so subsequent calls in a chain become no-ops that also
- * return -1.
- **/
-int strlcpy_append(char *s, size_t len, size_t *pos, const char *src)
-{
-   size_t remaining;
-   size_t n;
-
-   if (!s || !pos || !src || len == 0)
-      return -1;
-
-   if (*pos >= len)
-   {
-      /* Already saturated; clamp and report truncation. */
-      *pos = len - 1;
-      return -1;
-   }
-
-   remaining = len - *pos;
-   n         = strlcpy(s + *pos, src, remaining);
-
-   if (n >= remaining)
-   {
-      /* strlcpy truncated.  s + len - 1 is NUL-terminated by
-       * strlcpy's contract.  Clamp *pos so subsequent appends
-       * short-circuit. */
-      *pos = len - 1;
-      return -1;
-   }
-
-   *pos += n;
-   return 0;
-}
-
-/**
- * Retrieve the last occurrence of the given character in a string.
+ * Retrieve the last occurance of the given character in a string.
  */
 int string_index_last_occurance(const char *str, char c)
 {
@@ -794,100 +700,10 @@ int string_find_index_substring_string(const char *str, const char *substr)
  *
  * Strips non-ASCII characters from a string.
  **/
-void string_copy_only_ascii(char *s, const char *str)
+void string_copy_only_ascii(char *str_stripped, const char *str)
 {
    for (; *str; str++)
       if (*str > 0x1F && *str < 0x7F)
-         *s++ = *str;
-   *s = '\0';
-}
-
-/**
- * string_ext_list_find:
- *
- * Checks whether a single extension token already exists
- * in a '|'-delimited string. Exact token matching only.
- **/
-bool string_ext_list_find(const char *delim_str, size_t delim_len,
-      const char *ext, size_t ext_len)
-{
-   const char *p   = delim_str;
-   const char *end = delim_str + delim_len;
-
-   while (p < end)
-   {
-      const char *tok_end = (const char*)memchr(p, '|', end - p);
-      size_t tok_len;
-
-      if (!tok_end)
-         tok_end = end;
-
-      tok_len = tok_end - p;
-
-      if (tok_len == ext_len && memcmp(p, ext, ext_len) == 0)
-         return true;
-
-      p = tok_end + 1;
-   }
-
-   return false;
-}
-
-/**
- * string_ext_list_append_dedup:
- *
- * Appends a single extension to a '|'-delimited destination buffer,
- * but only if that extension is not already present.
- **/
-void string_ext_list_append_dedup(char *dst, size_t *dst_len,
-      size_t dst_size, const char *ext, size_t ext_len)
-{
-   if (ext_len == 0)
-      return;
-   if (string_ext_list_find(dst, *dst_len, ext, ext_len))
-      return;
-   if (*dst_len + 1 + ext_len + 1 > dst_size)
-      return;
-
-   if (*dst_len > 0)
-      dst[(*dst_len)++] = '|';
-
-   memcpy(dst + *dst_len, ext, ext_len);
-   *dst_len += ext_len;
-   dst[*dst_len] = '\0';
-}
-
-/**
- * string_ext_list_merge_dedup:
- *
- * Splits a '|'-delimited source string and appends each unique
- * extension to the destination buffer via string_ext_list_append_dedup.
- **/
-void string_ext_list_merge_dedup(char *dst, size_t *dst_len,
-      size_t dst_size, const char *src)
-{
-   const char *p;
-   const char *end;
-
-   if (!src || !*src)
-      return;
-
-   end = src + strlen(src);
-   p   = src;
-
-   while (p < end)
-   {
-      const char *tok_end = (const char*)memchr(p, '|', end - p);
-      size_t tok_len;
-
-      if (!tok_end)
-         tok_end = end;
-
-      tok_len = tok_end - p;
-
-      if (tok_len > 0)
-         string_ext_list_append_dedup(dst, dst_len, dst_size, p, tok_len);
-
-      p = tok_end + 1;
-   }
+         *str_stripped++ = *str;
+   *str_stripped = '\0';
 }

@@ -64,10 +64,6 @@ void Environment::deinitialize() {
     gameGeometryHeight = 0;
     gameGeometryAspectRatio = -1.0f;
 
-    avTimingUpdated = false;
-    avTimingFps = 0.0;
-    avTimingSampleRate = 0.0;
-
     rumbleStates.fill(libretrodroid::RumbleState {});
 }
 
@@ -308,27 +304,9 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
             return false;
 
             // TODO... RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO can also change frame-rate
-        case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO: {
-            // SET_SYSTEM_AV_INFO carries BOTH geometry AND timing (fps, sample_rate).
-            // The timing part must be applied to audio/fps sync — storing it separately
-            // so libretrodroid.cpp can pick it up and reinitialize the audio stream.
-            const auto* av_info = static_cast<const struct retro_system_av_info*>(data);
-            gameGeometryHeight = av_info->geometry.base_height;
-            gameGeometryWidth = av_info->geometry.base_width;
-            gameGeometryAspectRatio = av_info->geometry.aspect_ratio;
-            gameGeometryUpdated = true;
-            // Store new timing so the caller can reinitialize FPS sync and audio.
-            avTimingFps = av_info->timing.fps;
-            avTimingSampleRate = av_info->timing.sample_rate;
-            avTimingUpdated = true;
-            LOGD("SET_SYSTEM_AV_INFO: geometry %ux%u, fps=%.2f, sampleRate=%.0f",
-                gameGeometryWidth, gameGeometryHeight,
-                avTimingFps, avTimingSampleRate);
-            return true;
-        }
-
+        case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO:
         case RETRO_ENVIRONMENT_SET_GEOMETRY: {
-            const auto* geometry = static_cast<const struct retro_game_geometry*>(data);
+            struct retro_game_geometry *geometry = static_cast<struct retro_game_geometry *>(data);
             gameGeometryHeight = geometry->base_height;
             gameGeometryWidth = geometry->base_width;
             gameGeometryAspectRatio = geometry->aspect_ratio;
@@ -340,14 +318,9 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
             LOGD("Called RETRO_ENVIRONMENT_SET_CONTROLLER_INFO");
             return environment_handle_set_controller_info(static_cast<const struct retro_controller_info*>(data));
 
-        case RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE: {
+        case RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE:
             LOGD("Called RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE");
-            // Bit 0 = video enabled, bit 1 = audio enabled.
-            // Returning false here causes many cores (including PPSSPP) to skip
-            // their video output entirely, producing a black/blank screen.
-            *((int*) data) = (1 << 0) | (1 << 1); // RETRO_AV_ENABLE_VIDEO | RETRO_AV_ENABLE_AUDIO
-            return true;
-        }
+            return false;
 
         case RETRO_ENVIRONMENT_GET_LANGUAGE:
             LOGD("Called RETRO_ENVIRONMENT_GET_LANGUAGE");
@@ -506,20 +479,4 @@ void Environment::setEnableVirtualFileSystem(bool value) {
 
 void Environment::setEnableMicrophone(bool value) {
     this->enableMicrophone = value;
-}
-
-bool Environment::isAvTimingUpdated() const {
-    return avTimingUpdated;
-}
-
-void Environment::clearAvTimingUpdated() {
-    avTimingUpdated = false;
-}
-
-double Environment::getAvTimingFps() const {
-    return avTimingFps;
-}
-
-double Environment::getAvTimingSampleRate() const {
-    return avTimingSampleRate;
 }

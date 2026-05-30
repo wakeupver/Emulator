@@ -102,11 +102,6 @@ public:
     bool isGameGeometryUpdated() const;
     void clearGameGeometryUpdated();
 
-    bool isAvTimingUpdated() const;
-    void clearAvTimingUpdated();
-    double getAvTimingFps() const;
-    double getAvTimingSampleRate() const;
-
     std::array<libretrodroid::RumbleState, 4> & getLastRumbleStates();
 
     const std::vector<struct Variable> getVariables() const;
@@ -146,11 +141,6 @@ private:
     unsigned gameGeometryWidth = 0;
     unsigned gameGeometryHeight = 0;
     float gameGeometryAspectRatio = -1.0f;
-
-    // SET_SYSTEM_AV_INFO timing — set when the core requests an audio/fps change.
-    bool avTimingUpdated = false;
-    double avTimingFps = 0.0;
-    double avTimingSampleRate = 0.0;
 
     std::array<libretrodroid::RumbleState, 4> rumbleStates;
 

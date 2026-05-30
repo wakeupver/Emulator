@@ -58,16 +58,6 @@ void FramebufferRenderer::initializeBuffers() {
         depth,
         stencil
     );
-
-    // Clear the newly created FBO so it starts with known black pixels instead of
-    // whatever garbage memory happened to be in the GPU allocation.
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->framebuffer);
-    glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
-    GLbitfield clearMask = GL_COLOR_BUFFER_BIT;
-    if (depth)   clearMask |= GL_DEPTH_BUFFER_BIT;
-    if (stencil) clearMask |= GL_STENCIL_BUFFER_BIT;
-    glClear(clearMask);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 uintptr_t FramebufferRenderer::getTexture() {
