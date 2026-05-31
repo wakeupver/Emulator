@@ -274,6 +274,32 @@ void LibretroDroid::create(
     Environment::getInstance().setEnableVirtualFileSystem(enableVirtualFileSystem);
     Environment::getInstance().setEnableMicrophone(enableMicrophone);
 
+    // Register the immediate-resize callback for RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO.
+    // This callback is invoked from INSIDE retro_run() (on the GL thread) before the
+    // environment handler returns to the core. It rebuilds the FBO to the new size and
+    // calls hw_context_reset so that the core's next get_current_framebuffer() call sees
+    // the correctly-sized FBO — preventing a GL size-mismatch crash (e.g. PPSSPP resolution
+    // change → SIGABRT).
+    Environment::getInstance().setAVInfoChangedCallback([this](unsigned w, unsigned h) {
+        if (!video) {
+            LOGW("AVInfoChangedCallback: video not ready yet, skipping immediate resize");
+            return;
+        }
+        if (!Environment::getInstance().isUseHwAcceleration()) {
+            // Software-rendered cores do not use FBOs, so no resize or context_reset needed.
+            return;
+        }
+
+        LOGD("AVInfoChangedCallback: immediate FBO resize to %dx%d", w, h);
+        video->updateRendererSize(w, h);
+        video->recreateRenderer();
+
+        if (Environment::getInstance().getHwContextReset() != nullptr) {
+            LOGD("AVInfoChangedCallback: calling hw_context_reset");
+            Environment::getInstance().getHwContextReset()();
+        }
+    });
+
     openglESVersion = GLESVersion;
     screenRefreshRate = refreshRate;
     skipDuplicateFrames = duplicateFrames;
@@ -475,30 +501,22 @@ void LibretroDroid::step() {
     if (video && Environment::getInstance().isGameGeometryUpdated()) {
         Environment::getInstance().clearGameGeometryUpdated();
 
-        auto newWidth  = Environment::getInstance().getGameGeometryWidth();
-        auto newHeight = Environment::getInstance().getGameGeometryHeight();
+        bool wasFullAVUpdate = Environment::getInstance().isAVInfoFullUpdate();
+        Environment::getInstance().clearAVInfoFullUpdate();
 
-        LOGD("Geometry updated to %dx%d", newWidth, newHeight);
-        video->updateRendererSize(newWidth, newHeight);
-
-        // CRITICAL FIX: For HW-accelerated cores (e.g. PPSSPP), the core calls
-        // SET_SYSTEM_AV_INFO to signal a resolution change, then immediately
-        // expects get_current_framebuffer() to return an FBO of the NEW size on
-        // the very next retro_run().  Without forcing the FBO to be recreated
-        // here (before that next call), the core renders the new resolution into
-        // the old-sized FBO → GL errors → SIGABRT crash.
-        //
-        // Fix:
-        //  1. Force-recreate the FBO right now (while we are still on the GL thread).
-        //  2. Call hw_context_reset so the core reinitialises its own GL state
-        //     against the new FBO — this is required by the libretro HW-render spec.
-        if (Environment::getInstance().isUseHwAcceleration()) {
-            video->recreateRenderer();
-
-            if (Environment::getInstance().getHwContextReset() != nullptr) {
-                LOGD("Signalling hw_context_reset after geometry change");
-                Environment::getInstance().getHwContextReset()();
-            }
+        if (wasFullAVUpdate) {
+            // SET_SYSTEM_AV_INFO: FBO resize + hw_context_reset were already performed
+            // immediately inside the environment callback (while still in retro_run()).
+            // Nothing left to do here except mark the video as dirty so the aspect ratio
+            // and layout are refreshed on the next Java-side requestAspectRatioUpdate.
+            LOGD("step: SET_SYSTEM_AV_INFO already handled immediately, marking dirty");
+        } else {
+            // SET_GEOMETRY: only geometry/aspect-ratio changed, no GL context reset needed.
+            // Update the renderer layout so the new aspect ratio is applied.
+            auto newWidth  = Environment::getInstance().getGameGeometryWidth();
+            auto newHeight = Environment::getInstance().getGameGeometryHeight();
+            LOGD("step: SET_GEOMETRY update %dx%d", newWidth, newHeight);
+            video->updateRendererSize(newWidth, newHeight);
         }
 
         dirtyVideo = true;

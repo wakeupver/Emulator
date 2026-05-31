@@ -24,6 +24,7 @@
 #include <string>
 #include <cstring>
 #include <cmath>
+#include <functional>
 #include <EGL/egl.h>
 #include <unordered_map>
 #include <array>
@@ -54,6 +55,17 @@ public:
 
     void setEnableVirtualFileSystem(bool value);
     void setEnableMicrophone(bool value);
+
+    /**
+     * Callback invoked IMMEDIATELY when RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO is received,
+     * still inside retro_run(). The frontend must resize its FBO and call hw_context_reset
+     * before this callback returns, so that the core's next get_current_framebuffer() call
+     * sees the correctly-sized FBO.
+     *
+     * Signature: void(unsigned newWidth, unsigned newHeight)
+     */
+    using AVInfoChangedCallback = std::function<void(unsigned, unsigned)>;
+    void setAVInfoChangedCallback(AVInfoChangedCallback callback);
 
 private:
     Environment() {}
@@ -102,6 +114,12 @@ public:
     bool isGameGeometryUpdated() const;
     void clearGameGeometryUpdated();
 
+    /** True when the last geometry update came from SET_SYSTEM_AV_INFO (not SET_GEOMETRY).
+     *  In that case the FBO resize + hw_context_reset have already been done immediately
+     *  inside the environment callback; step() only needs to mark dirtyVideo. */
+    bool isAVInfoFullUpdate() const;
+    void clearAVInfoFullUpdate();
+
     std::array<libretrodroid::RumbleState, 4> & getLastRumbleStates();
 
     const std::vector<struct Variable> getVariables() const;
@@ -141,6 +159,8 @@ private:
     unsigned gameGeometryWidth = 0;
     unsigned gameGeometryHeight = 0;
     float gameGeometryAspectRatio = -1.0f;
+    bool avInfoFullUpdate = false;          // true when update came from SET_SYSTEM_AV_INFO
+    AVInfoChangedCallback avInfoChangedCallback = nullptr;
 
     std::array<libretrodroid::RumbleState, 4> rumbleStates;
 

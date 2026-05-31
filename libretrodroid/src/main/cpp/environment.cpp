@@ -63,6 +63,8 @@ void Environment::deinitialize() {
     gameGeometryWidth = 0;
     gameGeometryHeight = 0;
     gameGeometryAspectRatio = -1.0f;
+    avInfoFullUpdate = false;
+    avInfoChangedCallback = nullptr;
 
     rumbleStates.fill(libretrodroid::RumbleState {});
 }
@@ -304,13 +306,38 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
             return false;
 
             // TODO... RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO can also change frame-rate
-        case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO:
+        case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO: {
+            // CRITICAL: this is called from WITHIN retro_run(). PPSSPP (and other HW cores)
+            // will call get_current_framebuffer() immediately after this returns.  We MUST
+            // resize the FBO and call hw_context_reset right here, before we return, so the
+            // next get_current_framebuffer() sees the correctly-sized FBO.
+            struct retro_system_av_info *avInfo = static_cast<struct retro_system_av_info *>(data);
+            gameGeometryHeight     = avInfo->geometry.base_height;
+            gameGeometryWidth      = avInfo->geometry.base_width;
+            gameGeometryAspectRatio = avInfo->geometry.aspect_ratio;
+            gameGeometryUpdated    = true;
+            avInfoFullUpdate       = true;
+
+            LOGD("SET_SYSTEM_AV_INFO: new geometry %dx%d", gameGeometryWidth, gameGeometryHeight);
+
+            if (avInfoChangedCallback) {
+                avInfoChangedCallback(gameGeometryWidth, gameGeometryHeight);
+            } else {
+                LOGW("SET_SYSTEM_AV_INFO received but no avInfoChangedCallback registered – FBO not resized!");
+            }
+            return true;
+        }
+
         case RETRO_ENVIRONMENT_SET_GEOMETRY: {
+            // Geometry-only change (aspect ratio / base size). Does NOT require a GL context
+            // reset – step() will pick this up after retro_run() returns and update the layout.
             struct retro_game_geometry *geometry = static_cast<struct retro_game_geometry *>(data);
-            gameGeometryHeight = geometry->base_height;
-            gameGeometryWidth = geometry->base_width;
+            gameGeometryHeight     = geometry->base_height;
+            gameGeometryWidth      = geometry->base_width;
             gameGeometryAspectRatio = geometry->aspect_ratio;
-            gameGeometryUpdated = true;
+            gameGeometryUpdated    = true;
+            // avInfoFullUpdate intentionally NOT set here
+            LOGD("SET_GEOMETRY: new geometry %dx%d", gameGeometryWidth, gameGeometryHeight);
             return true;
         }
 
@@ -479,4 +506,16 @@ void Environment::setEnableVirtualFileSystem(bool value) {
 
 void Environment::setEnableMicrophone(bool value) {
     this->enableMicrophone = value;
+}
+
+void Environment::setAVInfoChangedCallback(AVInfoChangedCallback callback) {
+    avInfoChangedCallback = std::move(callback);
+}
+
+bool Environment::isAVInfoFullUpdate() const {
+    return avInfoFullUpdate;
+}
+
+void Environment::clearAVInfoFullUpdate() {
+    avInfoFullUpdate = false;
 }
