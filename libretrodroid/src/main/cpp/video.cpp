@@ -245,6 +245,10 @@ void Video::updateRendererSize(unsigned int width, unsigned int height) {
     renderer->updateRenderedResolution(width, height);
 }
 
+void Video::recreateRenderer() {
+    renderer->forceReinitialize();
+}
+
 void Video::updateRotation(float rotation) {
     videoLayout.updateRotation(rotation);
 }

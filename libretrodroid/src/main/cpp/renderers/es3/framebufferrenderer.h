@@ -46,6 +46,9 @@ public:
     void setShaders(ShaderManager::Chain shaders) override;
     PassData getPassData(unsigned int layer) override;
 
+    // Force immediate recreation of GL framebuffers if a resize is pending.
+    void forceReinitialize() override;
+
 private:
     bool depth = false;
     bool stencil = false;

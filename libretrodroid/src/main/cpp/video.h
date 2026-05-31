@@ -73,6 +73,12 @@ public:
     void updateRotation(float rotation);
     void updateShaderType(ShaderManager::Config shaderConfig);
 
+    // Force the renderer to immediately recreate its GL buffers if a resize
+    // is pending. Must be called (and hw_context_reset signalled) whenever a
+    // HW-accelerated core triggers SET_SYSTEM_AV_INFO, so that the next call
+    // to getCurrentFramebuffer() returns a correctly-sized FBO.
+    void recreateRenderer();
+
     void renderFrame();
 
     void onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch);

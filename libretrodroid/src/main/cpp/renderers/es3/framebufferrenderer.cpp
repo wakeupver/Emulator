@@ -84,6 +84,18 @@ bool FramebufferRenderer::rendersInVideoCallback() {
     return true;
 }
 
+void FramebufferRenderer::forceReinitialize() {
+    // Called when the host needs the FBO to match a new geometry immediately
+    // (e.g. after SET_SYSTEM_AV_INFO from a HW-accelerated core like PPSSPP).
+    // Without this, get_current_framebuffer() would return the old-sized FBO
+    // and the core would crash trying to render the new resolution into it.
+    if (isDirty) {
+        LOGD("FramebufferRenderer::forceReinitialize – rebuilding buffers (%dx%d)", width, height);
+        initializeBuffers();
+        isDirty = false;
+    }
+}
+
 void FramebufferRenderer::setShaders(ShaderManager::Chain shaders) {
     if (shaders != this->shaders) {
         this->shaders = shaders;

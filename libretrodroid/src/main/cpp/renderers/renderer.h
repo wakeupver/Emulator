@@ -46,6 +46,11 @@ public:
     virtual void setShaders(ShaderManager::Chain shaders) = 0;
     virtual PassData getPassData(unsigned int layer) = 0;
 
+    // Force immediate FBO/buffer recreation if a resize is pending.
+    // Called when a HW-accelerated core signals SET_SYSTEM_AV_INFO so the new
+    // framebuffer is ready before the next get_current_framebuffer() call.
+    virtual void forceReinitialize() {}
+
     virtual ~Renderer() = default;
 
 public:

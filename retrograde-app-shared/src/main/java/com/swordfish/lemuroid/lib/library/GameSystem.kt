@@ -851,7 +851,7 @@ data class GameSystem(
                         ),
                     ),
                     uniqueExtensions = listOf(),
-                    supportedExtensions = listOf("iso", "cso", "pbp"),
+                    supportedExtensions = listOf("iso", "cso", "pbp", "chd"),
                     scanOptions =
                         ScanOptions(
                             scanByFilename = false,

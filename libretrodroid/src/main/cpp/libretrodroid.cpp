@@ -475,10 +475,31 @@ void LibretroDroid::step() {
     if (video && Environment::getInstance().isGameGeometryUpdated()) {
         Environment::getInstance().clearGameGeometryUpdated();
 
-        video->updateRendererSize(
-            Environment::getInstance().getGameGeometryWidth(),
-            Environment::getInstance().getGameGeometryHeight()
-        );
+        auto newWidth  = Environment::getInstance().getGameGeometryWidth();
+        auto newHeight = Environment::getInstance().getGameGeometryHeight();
+
+        LOGD("Geometry updated to %dx%d", newWidth, newHeight);
+        video->updateRendererSize(newWidth, newHeight);
+
+        // CRITICAL FIX: For HW-accelerated cores (e.g. PPSSPP), the core calls
+        // SET_SYSTEM_AV_INFO to signal a resolution change, then immediately
+        // expects get_current_framebuffer() to return an FBO of the NEW size on
+        // the very next retro_run().  Without forcing the FBO to be recreated
+        // here (before that next call), the core renders the new resolution into
+        // the old-sized FBO → GL errors → SIGABRT crash.
+        //
+        // Fix:
+        //  1. Force-recreate the FBO right now (while we are still on the GL thread).
+        //  2. Call hw_context_reset so the core reinitialises its own GL state
+        //     against the new FBO — this is required by the libretro HW-render spec.
+        if (Environment::getInstance().isUseHwAcceleration()) {
+            video->recreateRenderer();
+
+            if (Environment::getInstance().getHwContextReset() != nullptr) {
+                LOGD("Signalling hw_context_reset after geometry change");
+                Environment::getInstance().getHwContextReset()();
+            }
+        }
 
         dirtyVideo = true;
     }

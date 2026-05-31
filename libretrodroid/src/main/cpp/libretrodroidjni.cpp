@@ -300,14 +300,30 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onSurfaceC
     jint width,
     jint height
 ) {
-    LibretroDroid::getInstance().onSurfaceChanged(width, height);
+    try {
+        LibretroDroid::getInstance().onSurfaceChanged(width, height);
+    } catch (std::exception& exception) {
+        LOGE("Error in onSurfaceChanged: %s", exception.what());
+        JavaUtils::throwRetroException(env, ERROR_GENERIC);
+    } catch (...) {
+        LOGE("Unknown exception in onSurfaceChanged");
+        JavaUtils::throwRetroException(env, ERROR_GENERIC);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onSurfaceCreated(
     JNIEnv* env,
     jclass obj
 ) {
-    LibretroDroid::getInstance().onSurfaceCreated();
+    try {
+        LibretroDroid::getInstance().onSurfaceCreated();
+    } catch (std::exception& exception) {
+        LOGE("Error in onSurfaceCreated: %s", exception.what());
+        JavaUtils::throwRetroException(env, ERROR_GENERIC);
+    } catch (...) {
+        LOGE("Unknown exception in onSurfaceCreated");
+        JavaUtils::throwRetroException(env, ERROR_GENERIC);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onMotionEvent(
@@ -530,21 +546,37 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_step(
     jclass obj,
     jobject glRetroView
 ) {
-    LibretroDroid::getInstance().step();
+    // CRITICAL: step() calls core->retro_run() which may throw C++ exceptions (e.g. PPSSPP
+    // internally calling std::terminate on unhandled errors). Without a try-catch here the
+    // exception escapes the JNI boundary, the ART runtime calls std::terminate(), which calls
+    // abort() → SIGABRT. Wrap the entire function body so any core exception is converted into
+    // a Java RetroException that GLRetroView.catchExceptions() can handle gracefully.
+    try {
+        LibretroDroid::getInstance().step();
 
-    if (LibretroDroid::getInstance().requiresVideoRefresh()) {
-        LibretroDroid::getInstance().clearRequiresVideoRefresh();
-        jclass cls = env->GetObjectClass(glRetroView);
-        jmethodID requestAspectRatioUpdate = env->GetMethodID(cls, "refreshAspectRatio", "()V");
-        env->CallVoidMethod(glRetroView, requestAspectRatioUpdate);
-    }
-
-    if (LibretroDroid::getInstance().isRumbleEnabled()) {
-        LibretroDroid::getInstance().handleRumbleUpdates([&](int port, float weak, float strong) {
+        if (LibretroDroid::getInstance().requiresVideoRefresh()) {
+            LibretroDroid::getInstance().clearRequiresVideoRefresh();
             jclass cls = env->GetObjectClass(glRetroView);
-            jmethodID sendRumbleStrengthMethodID = env->GetMethodID(cls, "sendRumbleEvent", "(IFF)V");
-            env->CallVoidMethod(glRetroView, sendRumbleStrengthMethodID, port, weak, strong);
-        });
+            jmethodID requestAspectRatioUpdate = env->GetMethodID(cls, "refreshAspectRatio", "()V");
+            env->CallVoidMethod(glRetroView, requestAspectRatioUpdate);
+        }
+
+        if (LibretroDroid::getInstance().isRumbleEnabled()) {
+            LibretroDroid::getInstance().handleRumbleUpdates([&](int port, float weak, float strong) {
+                jclass cls = env->GetObjectClass(glRetroView);
+                jmethodID sendRumbleStrengthMethodID = env->GetMethodID(cls, "sendRumbleEvent", "(IFF)V");
+                env->CallVoidMethod(glRetroView, sendRumbleStrengthMethodID, port, weak, strong);
+            });
+        }
+    } catch (libretrodroid::LibretroDroidError& exception) {
+        LOGE("LibretroDroidError in step: %s (code=%d)", exception.what(), exception.getErrorCode());
+        JavaUtils::throwRetroException(env, exception.getErrorCode());
+    } catch (std::exception& exception) {
+        LOGE("std::exception in step: %s", exception.what());
+        JavaUtils::throwRetroException(env, ERROR_GENERIC);
+    } catch (...) {
+        LOGE("Unknown exception in step");
+        JavaUtils::throwRetroException(env, ERROR_GENERIC);
     }
 }
 
