@@ -193,12 +193,39 @@ void LibretroDroid::onSurfaceCreated() {
     struct retro_system_av_info system_av_info {};
     core->retro_get_system_av_info(&system_av_info);
 
+    // FIX: Call context_destroy BEFORE destroying the old video/FBO.
+    // Without this, the core (e.g. PPSSPP) holds a dangling reference to the
+    // old FBO handle and will crash when it tries to use it after context_reset.
+    if (Environment::getInstance().isUseHwAcceleration() &&
+        Environment::getInstance().getHwContextDestroy() != nullptr) {
+        LOGD("onSurfaceCreated: calling hw_context_destroy before destroying Video");
+        Environment::getInstance().getHwContextDestroy()();
+    }
+
     video = nullptr;
+
+    // FIX: Use max(base_geometry, previously-reported geometry) for the FBO.
+    // PPSSPP reports base_width=480 (PSP native) even when rendering at 3×
+    // (1440×816). The actual render resolution is stored in gameGeometryWidth/
+    // Height from the last SET_SYSTEM_AV_INFO. Taking the max ensures the FBO
+    // is always large enough for whatever the core expects to render into.
+    unsigned fboWidth  = std::max(system_av_info.geometry.base_width,
+                                   Environment::getInstance().getGameGeometryWidth());
+    unsigned fboHeight = std::max(system_av_info.geometry.base_height,
+                                   Environment::getInstance().getGameGeometryHeight());
+    if (fboWidth  == 0) fboWidth  = system_av_info.geometry.base_width;
+    if (fboHeight == 0) fboHeight = system_av_info.geometry.base_height;
+
+    LOGD("onSurfaceCreated: creating FBO at %dx%d (base %dx%d, stored %dx%d)",
+         fboWidth, fboHeight,
+         system_av_info.geometry.base_width, system_av_info.geometry.base_height,
+         Environment::getInstance().getGameGeometryWidth(),
+         Environment::getInstance().getGameGeometryHeight());
 
     Video::RenderingOptions renderingOptions {
         Environment::getInstance().isUseHwAcceleration(),
-        system_av_info.geometry.base_width,
-        system_av_info.geometry.base_height,
+        fboWidth,
+        fboHeight,
         Environment::getInstance().isUseDepth(),
         Environment::getInstance().isUseStencil(),
         openglESVersion,
@@ -291,6 +318,17 @@ void LibretroDroid::create(
         }
 
         LOGD("AVInfoChangedCallback: immediate FBO resize to %dx%d", w, h);
+
+        // FIX: Call context_destroy BEFORE deleting and recreating the FBO.
+        // recreateRenderer() calls initializeBuffers() which deletes the old GL
+        // framebuffer object. If hw_context_destroy is not called first, the core
+        // (e.g. PPSSPP) still holds the old FBO handle as a dangling reference.
+        // It then crashes in the next retro_run() when it tries to render into it.
+        if (Environment::getInstance().getHwContextDestroy() != nullptr) {
+            LOGD("AVInfoChangedCallback: calling hw_context_destroy before FBO rebuild");
+            Environment::getInstance().getHwContextDestroy()();
+        }
+
         video->updateRendererSize(w, h);
         video->recreateRenderer();
 
