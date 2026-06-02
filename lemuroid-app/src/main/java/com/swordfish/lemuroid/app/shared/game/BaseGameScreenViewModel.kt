@@ -13,6 +13,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swordfish.lemuroid.app.mobile.feature.game.GameService
 import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
+import com.swordfish.lemuroid.app.shared.game.macro.GameViewModelMacro
+import com.swordfish.lemuroid.app.shared.game.macro.MacroButton
+import com.swordfish.lemuroid.app.shared.game.macro.MacroButtonsManager
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelInput
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelRetroGameView
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelSaves
@@ -120,6 +123,12 @@ class BaseGameScreenViewModel(
             sideEffects,
             viewModelScope,
         )
+    val macro =
+        GameViewModelMacro(
+            MacroButtonsManager(sharedPreferences),
+            retroGameView,
+            viewModelScope,
+        )
     private val touchControls =
         GameViewModelTouchControls(
             settingsManager,
@@ -128,6 +137,7 @@ class BaseGameScreenViewModel(
             inputs,
             tilt,
             sideEffects,
+            macro,
             viewModelScope,
         )
     private val saves =
@@ -208,9 +218,37 @@ class BaseGameScreenViewModel(
         retroGameView.initialize(applicationContext, game, systemCoreConfig, gameLoader, requestLoadSave)
     }
 
-    fun showEditControls(show: Boolean) = touchControls.showEditControls(show)
+    fun showEditControls(show: Boolean) {
+        touchControls.showEditControls(show)
+        macro.setEditMode(show)
+    }
 
     fun isEditControlShown(): Flow<Boolean> = touchControls.isEditControlsShown()
+
+    // ---- Macro buttons ----
+
+    fun getMacroButtons() = macro.macroButtons
+    fun getMacroEditMode() = macro.editMode
+    fun addOrUpdateMacro(btn: MacroButton) = macro.addOrUpdateMacro(btn)
+    fun deleteMacro(macroId: String) = macro.deleteMacro(macroId)
+    fun clearAllMacros() = macro.clearAll()
+    fun updateMacroPosition(macroId: String, x: Float, y: Float) = macro.updateMacroPosition(macroId, x, y)
+    fun fireMacro(btn: MacroButton) = macro.fireMacro(btn)
+
+    /**
+     * Closes the Edit Controls dialog but keeps macros in drag/edit mode so the
+     * user can reposition them freely on the game screen.
+     */
+    fun enterMacroDragMode() {
+        // Directly close the dialog without touching macro.editMode
+        touchControls.showEditControls(false)
+        // macro.editMode stays true (set by the prior showEditControls(true) call)
+    }
+
+    /** Exits macro drag mode without reopening the Edit Controls dialog. */
+    fun exitMacroDragMode() {
+        macro.setEditMode(false)
+    }
 
     fun updateTouchControllerSettings(touchControllerSettings: TouchControllerSettingsManager.Settings) =
         touchControls.updateTouchControllerSettings(touchControllerSettings)

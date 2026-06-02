@@ -3,4 +3,17 @@
     <string name="touch_customize_button_done">Done</string>
     <string name="touch_customize_button_reset">Reset</string>
     <string name="touch_customize_info">Drag and Pinch controls to change position and size</string>
+
+    <!-- Macro buttons -->
+    <string name="macro_section_title">Macro Buttons</string>
+    <string name="macro_add_button">Add Macro</string>
+    <string name="macro_position_button">Position Macros</string>
+    <string name="macro_done_positioning">Done Positioning</string>
+    <string name="macro_empty_hint">No macros yet. Tap + to add one.</string>
+    <string name="macro_dialog_title">New Macro Button</string>
+    <string name="macro_label_hint">Label (1–6 chars)</string>
+    <string name="macro_keys_label">Keys to press</string>
+    <string name="macro_simultaneous_label">Simultaneous</string>
+    <string name="macro_sequential_label">Sequential</string>
+    <string name="macro_at_limit">Maximum %1$d macro buttons reached</string>
 </resources>

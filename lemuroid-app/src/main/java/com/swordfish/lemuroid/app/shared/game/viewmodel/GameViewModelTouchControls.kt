@@ -7,6 +7,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
+import com.swordfish.lemuroid.app.shared.game.macro.GameViewModelMacro
 import com.swordfish.lemuroid.app.shared.settings.HapticFeedbackMode
 import com.swordfish.lemuroid.common.coroutines.launchOnState
 import com.swordfish.lemuroid.common.coroutines.safeCollect
@@ -42,6 +43,7 @@ class GameViewModelTouchControls(
     private val inputs: GameViewModelInput,
     private val tilt: GameViewModelTilt,
     private val sideEffects: GameViewModelSideEffects,
+    private val macro: GameViewModelMacro,
     private val scope: CoroutineScope,
 ) : DefaultLifecycleObserver {
     private val touchControlId = MutableStateFlow(TouchControllerID.GB)
@@ -56,6 +58,8 @@ class GameViewModelTouchControls(
         owner.launchOnState(Lifecycle.State.CREATED) {
             getTouchControllerConfig().safeCollect {
                 touchControlId.value = it.touchControllerID
+                // Keep macro VM in sync with the active controller
+                macro.setControllerKey(it.touchControllerID.name)
             }
         }
         owner.launchOnState(Lifecycle.State.CREATED) {
