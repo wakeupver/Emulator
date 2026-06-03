@@ -228,17 +228,19 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
                 }
             }
 
-            // ── Macro button overlay (always above the game UI) ────────
-            if (touchControlsVisibleState.value) {
-                MacroButtonOverlay(viewModel = viewModel)
-            }
+        } // end PadKit
 
-            // ── Drag-mode banner (when positioning macros, no dialog) ──
-            val macroEditMode = viewModel.getMacroEditMode().collectAsState(false).value
-            val editDialogShown = viewModel.isEditControlShown().collectAsState(false).value
-            if (macroEditMode && !editDialogShown) {
-                MacroDragModeBanner(onDone = { viewModel.exitMacroDragMode() })
-            }
+        // ── OUTSIDE PadKit – macro overlay handles its own touch events ──
+        // PadKit swallows all raw input; placing the overlay here ensures
+        // detectDragGestures / detectTapGestures receive unfiltered events.
+        val macroEditMode by viewModel.getMacroEditMode().collectAsState(false)
+        val editDialogShown by viewModel.isEditControlShown().collectAsState(false)
+
+        if (touchControlsVisibleState.value) {
+            MacroButtonOverlay(viewModel = viewModel)
+        }
+        if (macroEditMode && !editDialogShown) {
+            MacroDragModeBanner(onDone = { viewModel.exitMacroDragMode() })
         }
 
         val isLoading =
