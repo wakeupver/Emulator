@@ -75,15 +75,16 @@ fun MacroButtonOverlay(viewModel: BaseGameScreenViewModel) {
         macroButtons.forEach { btn ->
             key(btn.id) {
                 MacroButtonItem(
-                    btn      = btn,
-                    editMode = editMode,
-                    screenW  = screenW,
-                    screenH  = screenH,
-                    btnPx    = btnPx,
-                    badgePx  = badgePx,
-                    onTap    = { viewModel.fireMacro(btn) },
-                    onMoved  = { x, y -> viewModel.updateMacroPosition(btn.id, x, y) },
-                    onDelete = { viewModel.deleteMacro(btn.id) },
+                    btn       = btn,
+                    editMode  = editMode,
+                    screenW   = screenW,
+                    screenH   = screenH,
+                    btnPx     = btnPx,
+                    badgePx   = badgePx,
+                    onPress   = { viewModel.pressMacro(btn) },
+                    onRelease = { viewModel.releaseMacro(btn) },
+                    onMoved   = { x, y -> viewModel.updateMacroPosition(btn.id, x, y) },
+                    onDelete  = { viewModel.deleteMacro(btn.id) },
                 )
             }
         }
@@ -102,7 +103,8 @@ private fun MacroButtonItem(
     screenH: Float,
     btnPx: Float,
     badgePx: Float,
-    onTap: () -> Unit,
+    onPress: () -> Unit,
+    onRelease: () -> Unit,
     onMoved: (xFrac: Float, yFrac: Float) -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -147,13 +149,14 @@ private fun MacroButtonItem(
             detectTapGestures(
                 onPress = { _ ->
                     pressedState.value = true
+                    onPress()           // ACTION_DOWN langsung saat jari menyentuh
                     try {
                         tryAwaitRelease()
                     } finally {
                         pressedState.value = false
+                        onRelease()     // ACTION_UP saat jari diangkat
                     }
                 },
-                onTap = { onTap() },
             )
         }
     }
