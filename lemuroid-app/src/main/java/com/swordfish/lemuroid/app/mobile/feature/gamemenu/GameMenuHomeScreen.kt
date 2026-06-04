@@ -1,18 +1,28 @@
 package com.swordfish.lemuroid.app.mobile.feature.gamemenu
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.alorma.compose.settings.storage.memory.rememberMemoryBooleanSettingState
 import com.alorma.compose.settings.storage.memory.rememberMemoryIntSettingState
@@ -30,172 +40,211 @@ fun GameMenuHomeScreen(
     gameMenuRequest: GameMenuActivity.GameMenuRequest,
     onResult: KFunction1<Intent.() -> Unit, Unit>,
 ) {
-    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // ── SAVE STATES ──────────────────────────────────────────────────────
         if (gameMenuRequest.coreConfig.statesSupported) {
-            LemuroidSettingsMenuLink(
-                title = { Text(text = stringResource(id = R.string.game_menu_save)) },
-                icon = {
-                    Icon(
-                        painterResource(R.drawable.ic_menu_save),
-                        contentDescription = stringResource(id = R.string.game_menu_save),
-                    )
-                },
-                onClick = { navController.navigateToRoute(GameMenuRoute.SAVE) },
-            )
-
-            LemuroidSettingsMenuLink(
-                title = { Text(text = stringResource(id = R.string.game_menu_load)) },
-                icon = {
-                    Icon(
-                        painterResource(R.drawable.ic_menu_load),
-                        contentDescription = stringResource(id = R.string.game_menu_load),
-                    )
-                },
-                onClick = { navController.navigateToRoute(GameMenuRoute.LOAD) },
-            )
+            MenuSection(stringResource(R.string.game_menu_section_states)) {
+                LemuroidSettingsMenuLink(
+                    title = { Text(text = stringResource(id = R.string.game_menu_save)) },
+                    icon = {
+                        Icon(
+                            painterResource(R.drawable.ic_menu_save),
+                            contentDescription = null,
+                        )
+                    },
+                    onClick = { navController.navigateToRoute(GameMenuRoute.SAVE) },
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                LemuroidSettingsMenuLink(
+                    title = { Text(text = stringResource(id = R.string.game_menu_load)) },
+                    icon = {
+                        Icon(
+                            painterResource(R.drawable.ic_menu_load),
+                            contentDescription = null,
+                        )
+                    },
+                    onClick = { navController.navigateToRoute(GameMenuRoute.LOAD) },
+                )
+            }
         }
 
-        LemuroidSettingsMenuLink(
-            title = { Text(text = stringResource(id = R.string.game_menu_quit)) },
-            icon = {
-                Icon(
-                    painterResource(R.drawable.ic_menu_quit),
-                    contentDescription = stringResource(id = R.string.game_menu_quit),
-                )
-            },
-            onClick = {
-                onResult { putExtra(GameMenuContract.RESULT_QUIT, true) }
-            },
-        )
-
-        LemuroidSettingsMenuLink(
-            title = { Text(text = stringResource(id = R.string.game_menu_restart)) },
-            icon = {
-                Icon(
-                    painterResource(R.drawable.ic_menu_restart),
-                    contentDescription = stringResource(id = R.string.game_menu_restart),
-                )
-            },
-            onClick = {
-                onResult { putExtra(GameMenuContract.RESULT_RESET, true) }
-            },
-        )
-
-        LemuroidSettingsSwitch(
-            title = { Text(text = stringResource(id = R.string.game_menu_mute_audio)) },
-            icon = {
-                Icon(
-                    painterResource(R.drawable.ic_menu_mute),
-                    contentDescription = stringResource(id = R.string.game_menu_mute_audio),
-                )
-            },
-            state = rememberMemoryBooleanSettingState(!gameMenuRequest.audioEnabled),
-            onCheckedChange = {
-                onResult { putExtra(GameMenuContract.RESULT_ENABLE_AUDIO, !it) }
-            },
-        )
-
-        if (gameMenuRequest.fastForwardSupported) {
+        // ── PLAYBACK ─────────────────────────────────────────────────────────
+        MenuSection(stringResource(R.string.game_menu_section_playback)) {
             LemuroidSettingsSwitch(
-                title = { Text(text = stringResource(id = R.string.game_menu_fast_forward)) },
+                title = { Text(text = stringResource(id = R.string.game_menu_mute_audio)) },
                 icon = {
                     Icon(
-                        painterResource(R.drawable.ic_menu_fast_forward),
-                        contentDescription = stringResource(id = R.string.game_menu_fast_forward),
+                        painterResource(R.drawable.ic_menu_mute),
+                        contentDescription = null,
                     )
                 },
-                state = rememberMemoryBooleanSettingState(gameMenuRequest.fastForwardEnabled),
+                state = rememberMemoryBooleanSettingState(!gameMenuRequest.audioEnabled),
                 onCheckedChange = {
-                    onResult { putExtra(GameMenuContract.RESULT_ENABLE_FAST_FORWARD, it) }
+                    onResult { putExtra(GameMenuContract.RESULT_ENABLE_AUDIO, !it) }
                 },
             )
-        }
 
-        if (gameMenuRequest.numDisks > 1) {
-            LemuroidSettingsList(
-                title = { Text(text = stringResource(id = R.string.game_menu_change_disk_button)) },
-                items = (1..gameMenuRequest.numDisks).map { stringResource(R.string.game_menu_change_disk_disk, it) },
-                useSelectedValueAsSubtitle = false,
-                icon = {
-                    Icon(
-                        painterResource(R.drawable.ic_menu_disk),
-                        contentDescription = stringResource(id = R.string.game_menu_change_disk_button),
-                    )
-                },
-                state = rememberMemoryIntSettingState(gameMenuRequest.currentDisk),
-                onItemSelected = { index, _ ->
-                    onResult { putExtra(GameMenuContract.RESULT_CHANGE_DISK, index) }
-                },
-            )
-        }
-
-        LemuroidSettingsMenuLink(
-            title = { Text(text = stringResource(id = R.string.game_menu_edit_touch_controls)) },
-            icon = {
-                Icon(
-                    painterResource(R.drawable.ic_menu_controls),
-                    contentDescription = stringResource(id = R.string.game_menu_edit_touch_controls),
+            if (gameMenuRequest.fastForwardSupported) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                LemuroidSettingsSwitch(
+                    title = { Text(text = stringResource(id = R.string.game_menu_fast_forward)) },
+                    icon = {
+                        Icon(
+                            painterResource(R.drawable.ic_menu_fast_forward),
+                            contentDescription = null,
+                        )
+                    },
+                    state = rememberMemoryBooleanSettingState(gameMenuRequest.fastForwardEnabled),
+                    onCheckedChange = {
+                        onResult { putExtra(GameMenuContract.RESULT_ENABLE_FAST_FORWARD, it) }
+                    },
                 )
-            },
-            onClick = {
-                onResult { putExtra(GameMenuContract.RESULT_EDIT_TOUCH_CONTROLS, true) }
-            },
-        )
+            }
 
-        if (gameMenuRequest.advancedCoreOptions.isNotEmpty() || gameMenuRequest.coreOptions.isNotEmpty()) {
-            LemuroidSettingsMenuLink(
-                title = { Text(text = stringResource(id = R.string.game_menu_settings)) },
-                icon = {
-                    Icon(
-                        painterResource(R.drawable.ic_menu_settings),
-                        contentDescription = stringResource(id = R.string.game_menu_settings),
-                    )
-                },
-                onClick = { navController.navigateToRoute(GameMenuRoute.OPTIONS) },
-            )
-        }
-
-        // Patch Codes (cheat codes) – always visible so users can manage codes any time
-        LemuroidSettingsMenuLink(
-            title = { Text(text = stringResource(id = R.string.game_menu_patch_codes)) },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Code,
-                    contentDescription = stringResource(id = R.string.game_menu_patch_codes),
+            if (gameMenuRequest.numDisks > 1) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                LemuroidSettingsList(
+                    title = { Text(text = stringResource(id = R.string.game_menu_change_disk_button)) },
+                    items = (1..gameMenuRequest.numDisks).map { stringResource(R.string.game_menu_change_disk_disk, it) },
+                    useSelectedValueAsSubtitle = false,
+                    icon = {
+                        Icon(
+                            painterResource(R.drawable.ic_menu_disk),
+                            contentDescription = null,
+                        )
+                    },
+                    state = rememberMemoryIntSettingState(gameMenuRequest.currentDisk),
+                    onItemSelected = { index, _ ->
+                        onResult { putExtra(GameMenuContract.RESULT_CHANGE_DISK, index) }
+                    },
                 )
-            },
-            onClick = { navController.navigateToRoute(GameMenuRoute.PATCH_CODES) },
-        )
+            }
 
-        if (gameMenuRequest.allTiltConfigurations.isNotEmpty()) {
-            val tiltConfigurationEntries =
-                gameMenuRequest.allTiltConfigurations
+            if (gameMenuRequest.allTiltConfigurations.isNotEmpty()) {
+                val tiltEntries = gameMenuRequest.allTiltConfigurations
                     .map { TiltConfigurationMenuEntry.fromTiltConfiguration(it) }
-
-            val selectedIndex =
-                gameMenuRequest.allTiltConfigurations
+                val selectedIndex = gameMenuRequest.allTiltConfigurations
                     .indexOf(gameMenuRequest.currentTiltConfiguration)
 
-            LemuroidSettingsList(
-                title = { Text(text = stringResource(id = R.string.game_menu_tilt_sensor)) },
-                items = tiltConfigurationEntries.map { stringResource(it.descriptionId) },
-                useSelectedValueAsSubtitle = false,
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                LemuroidSettingsList(
+                    title = { Text(text = stringResource(id = R.string.game_menu_tilt_sensor)) },
+                    items = tiltEntries.map { stringResource(it.descriptionId) },
+                    useSelectedValueAsSubtitle = false,
+                    icon = {
+                        Icon(imageVector = Icons.Default.Sensors, contentDescription = null)
+                    },
+                    state = rememberMemoryIntSettingState(selectedIndex),
+                    onItemSelected = { index, _ ->
+                        onResult {
+                            putExtra(
+                                GameMenuContract.RESULT_CHANGE_TILT_CONFIG,
+                                tiltEntries[index].configuration,
+                            )
+                        }
+                    },
+                )
+            }
+        }
+
+        // ── OPTIONS ──────────────────────────────────────────────────────────
+        MenuSection(stringResource(R.string.game_menu_section_options)) {
+            LemuroidSettingsMenuLink(
+                title = { Text(text = stringResource(id = R.string.game_menu_edit_touch_controls)) },
                 icon = {
                     Icon(
-                        imageVector = Icons.Default.Sensors,
-                        contentDescription = stringResource(id = R.string.game_menu_tilt_sensor),
+                        painterResource(R.drawable.ic_menu_controls),
+                        contentDescription = null,
                     )
                 },
-                state = rememberMemoryIntSettingState(selectedIndex),
-                onItemSelected = { index, _ ->
-                    onResult {
-                        putExtra(
-                            GameMenuContract.RESULT_CHANGE_TILT_CONFIG,
-                            tiltConfigurationEntries[index].configuration,
-                        )
-                    }
+                onClick = {
+                    onResult { putExtra(GameMenuContract.RESULT_EDIT_TOUCH_CONTROLS, true) }
                 },
             )
+
+            if (gameMenuRequest.advancedCoreOptions.isNotEmpty() || gameMenuRequest.coreOptions.isNotEmpty()) {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                LemuroidSettingsMenuLink(
+                    title = { Text(text = stringResource(id = R.string.game_menu_settings)) },
+                    icon = {
+                        Icon(
+                            painterResource(R.drawable.ic_menu_settings),
+                            contentDescription = null,
+                        )
+                    },
+                    onClick = { navController.navigateToRoute(GameMenuRoute.OPTIONS) },
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            LemuroidSettingsMenuLink(
+                title = { Text(text = stringResource(id = R.string.game_menu_patch_codes)) },
+                icon = {
+                    Icon(imageVector = Icons.Default.Code, contentDescription = null)
+                },
+                onClick = { navController.navigateToRoute(GameMenuRoute.PATCH_CODES) },
+            )
+        }
+
+        // ── ACTIONS (destructive) ─────────────────────────────────────────────
+        MenuSection(stringResource(R.string.game_menu_section_actions)) {
+            LemuroidSettingsMenuLink(
+                title = { Text(text = stringResource(id = R.string.game_menu_restart)) },
+                icon = {
+                    Icon(
+                        painterResource(R.drawable.ic_menu_restart),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                    )
+                },
+                onClick = {
+                    onResult { putExtra(GameMenuContract.RESULT_RESET, true) }
+                },
+            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            LemuroidSettingsMenuLink(
+                title = {
+                    Text(
+                        text = stringResource(id = R.string.game_menu_quit),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                },
+                icon = {
+                    Icon(
+                        painterResource(R.drawable.ic_menu_quit),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                },
+                onClick = {
+                    onResult { putExtra(GameMenuContract.RESULT_QUIT, true) }
+                },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun MenuSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
+        )
+        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+            content()
         }
     }
 }

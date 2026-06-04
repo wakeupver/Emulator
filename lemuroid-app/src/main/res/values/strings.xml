@@ -164,6 +164,10 @@
     <string name="core_settings_auto_detected">All Core Options</string>
 
     <string name="game_menu_title">Game menu</string>
+    <string name="game_menu_section_states">Save States</string>
+    <string name="game_menu_section_playback">Playback</string>
+    <string name="game_menu_section_options">Options</string>
+    <string name="game_menu_section_actions">Actions</string>
 
     <string name="notification_channel_name">All notifications</string>
     <string name="library_index_notification_title">ROMs scanning in progress</string>

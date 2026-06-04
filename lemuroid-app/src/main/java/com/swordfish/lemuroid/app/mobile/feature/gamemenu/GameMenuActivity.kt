@@ -11,6 +11,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,11 +23,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -160,7 +166,26 @@ class GameMenuActivity : RetrogradeComponentActivity() {
 
             SideMenu {
                 TopAppBar(
-                    title = { Text(stringResource(currentRoute.titleId)) },
+                    title = {
+                        when (currentRoute) {
+                            GameMenuRoute.HOME ->
+                                Column {
+                                    Text(
+                                        text = stringResource(R.string.game_menu_title),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        text = gameMenuRequest.game.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            else ->
+                                Text(stringResource(currentRoute.titleId))
+                        }
+                    },
                     windowInsets = WindowInsets(0.dp),
                     navigationIcon = {
                         AnimatedContent(targetState = currentRoute.canGoBack(), label = "Back") { canGoBack ->
@@ -182,7 +207,7 @@ class GameMenuActivity : RetrogradeComponentActivity() {
                         }
                     },
                 )
-                Divider(modifier = Modifier.fillMaxWidth())
+                HorizontalDivider(modifier = Modifier.fillMaxWidth())
                 NavHost(
                     modifier =
                         Modifier
@@ -257,20 +282,29 @@ class GameMenuActivity : RetrogradeComponentActivity() {
     private fun SideMenu(content: @Composable () -> Unit) {
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.CenterEnd,
         ) {
-            val panelWidth =
-                remember(maxWidth) {
-                    minOf(maxWidth * 0.8f, 400f.dp)
-                }
+            // Semi-transparent scrim: tapping it dismisses the menu
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onResult { } },
+            )
+
+            val panelWidth = remember(maxWidth) {
+                minOf(maxWidth * 0.85f, 420.dp)
+            }
 
             Surface(
-                modifier =
-                    Modifier
-                        .padding()
-                        .fillMaxHeight()
-                        .width(panelWidth)
-                        .clip(MaterialTheme.shapes.large),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .width(panelWidth)
+                    .clip(RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp)),
+                tonalElevation = 3.dp,
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     content()
