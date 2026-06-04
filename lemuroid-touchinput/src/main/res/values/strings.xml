@@ -3,6 +3,13 @@
     <string name="touch_customize_button_done">Done</string>
     <string name="touch_customize_button_reset">Reset</string>
     <string name="touch_customize_info">Drag and Pinch controls to change position and size</string>
+    <string name="touch_customize_title">Customize Controls</string>
+    <string name="touch_customize_subtitle">Adjust layout and macros</string>
+    <string name="touch_customize_layout_section">Layout</string>
+    <string name="touch_customize_scale">Scale</string>
+    <string name="touch_customize_margin_h">Horizontal Offset</string>
+    <string name="touch_customize_margin_v">Vertical Offset</string>
+    <string name="touch_customize_rotate">Rotation</string>
 
     <!-- Macro buttons -->
     <string name="macro_section_title">Macro Buttons</string>

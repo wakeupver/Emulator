@@ -1,25 +1,35 @@
 package com.swordfish.lemuroid.app.mobile.feature.gamemenu
 
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -152,23 +162,19 @@ fun GameMenuHomeScreen(
             }
         }
 
+        // ── CONTROLS ─────────────────────────────────────────────────────────
+        MenuSection(
+            title = stringResource(R.string.game_menu_section_controls),
+            useCard = false,
+        ) {
+            EditControlsCard {
+                onResult { putExtra(GameMenuContract.RESULT_EDIT_TOUCH_CONTROLS, true) }
+            }
+        }
+
         // ── OPTIONS ──────────────────────────────────────────────────────────
         MenuSection(stringResource(R.string.game_menu_section_options)) {
-            LemuroidSettingsMenuLink(
-                title = { Text(text = stringResource(id = R.string.game_menu_edit_touch_controls)) },
-                icon = {
-                    Icon(
-                        painterResource(R.drawable.ic_menu_controls),
-                        contentDescription = null,
-                    )
-                },
-                onClick = {
-                    onResult { putExtra(GameMenuContract.RESULT_EDIT_TOUCH_CONTROLS, true) }
-                },
-            )
-
             if (gameMenuRequest.advancedCoreOptions.isNotEmpty() || gameMenuRequest.coreOptions.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 LemuroidSettingsMenuLink(
                     title = { Text(text = stringResource(id = R.string.game_menu_settings)) },
                     icon = {
@@ -179,9 +185,8 @@ fun GameMenuHomeScreen(
                     },
                     onClick = { navController.navigateToRoute(GameMenuRoute.OPTIONS) },
                 )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
-
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             LemuroidSettingsMenuLink(
                 title = { Text(text = stringResource(id = R.string.game_menu_patch_codes)) },
                 icon = {
@@ -231,9 +236,76 @@ fun GameMenuHomeScreen(
     }
 }
 
+// ── EDIT CONTROLS CARD ────────────────────────────────────────────────────────
+// A visually distinct, tappable card that stands out from plain list items.
+
+@Composable
+private fun EditControlsCard(onClick: () -> Unit) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Tinted circular icon background
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_menu_controls),
+                    contentDescription = null,
+                    modifier = Modifier.size(26.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            // Title + subtitle
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.game_menu_edit_touch_controls),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    text = stringResource(R.string.game_menu_edit_touch_controls_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                )
+            }
+
+            // Trailing arrow
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
+            )
+        }
+    }
+}
+
+// ── MENU SECTION ──────────────────────────────────────────────────────────────
+
 @Composable
 private fun MenuSection(
     title: String,
+    useCard: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -243,7 +315,11 @@ private fun MenuSection(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
         )
-        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        if (useCard) {
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                content()
+            }
+        } else {
             content()
         }
     }

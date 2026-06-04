@@ -1,6 +1,7 @@
 package com.swordfish.lemuroid.app.mobile.feature.game
 
 import android.graphics.RectF
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -30,15 +32,18 @@ import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.RotateLeft
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -56,6 +61,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -86,6 +92,7 @@ import com.swordfish.touchinput.radial.ui.LemuroidButtonPressFeedback
 import gg.padkit.PadKit
 import gg.padkit.config.HapticFeedbackType
 import gg.padkit.inputstate.InputState
+import kotlin.math.roundToInt
 
 @Composable
 fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
@@ -373,131 +380,206 @@ private fun MenuEditTouchControls(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .verticalScroll(rememberScrollState())
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                // ── Controller layout sliders ──────────────────────────
-                MenuEditTouchControlRow(Icons.Default.OpenInFull, "Scale", 0f) {
-                    Slider(
+                // ── Dialog header ──────────────────────────────────────
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = stringResource(R.string.touch_customize_title),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.touch_customize_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                HorizontalDivider()
+
+                // ── Layout section ─────────────────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.touch_customize_layout_section).uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 2.dp),
+                    )
+                    MenuEditTouchControlRow(
+                        icon = Icons.Default.OpenInFull,
+                        label = stringResource(R.string.touch_customize_scale),
+                        iconRotation = 0f,
                         value = touchControllerSettings.scale,
-                        onValueChange = {
-                            viewModel.updateTouchControllerSettings(
-                                touchControllerSettings.copy(scale = it),
-                            )
-                        },
-                    )
-                }
-                MenuEditTouchControlRow(Icons.Default.Height, "Horizontal Margin", 90f) {
-                    Slider(
-                        value = touchControllerSettings.marginX,
-                        onValueChange = {
-                            viewModel.updateTouchControllerSettings(
-                                touchControllerSettings.copy(marginX = it),
-                            )
-                        },
-                    )
-                }
-                MenuEditTouchControlRow(Icons.Default.Height, "Vertical Margin", 0f) {
-                    Slider(
-                        value = touchControllerSettings.marginY,
-                        onValueChange = {
-                            viewModel.updateTouchControllerSettings(
-                                touchControllerSettings.copy(marginY = it),
-                            )
-                        },
-                    )
-                }
-                if (controllerConfig.allowTouchRotation) {
-                    MenuEditTouchControlRow(Icons.Default.RotateLeft, "Rotate", 0f) {
+                    ) {
                         Slider(
-                            value = touchControllerSettings.rotation,
+                            value = touchControllerSettings.scale,
                             onValueChange = {
                                 viewModel.updateTouchControllerSettings(
-                                    touchControllerSettings.copy(rotation = it),
+                                    touchControllerSettings.copy(scale = it),
                                 )
                             },
                         )
                     }
+                    MenuEditTouchControlRow(
+                        icon = Icons.Default.Height,
+                        label = stringResource(R.string.touch_customize_margin_h),
+                        iconRotation = 90f,
+                        value = touchControllerSettings.marginX,
+                    ) {
+                        Slider(
+                            value = touchControllerSettings.marginX,
+                            onValueChange = {
+                                viewModel.updateTouchControllerSettings(
+                                    touchControllerSettings.copy(marginX = it),
+                                )
+                            },
+                        )
+                    }
+                    MenuEditTouchControlRow(
+                        icon = Icons.Default.Height,
+                        label = stringResource(R.string.touch_customize_margin_v),
+                        iconRotation = 0f,
+                        value = touchControllerSettings.marginY,
+                    ) {
+                        Slider(
+                            value = touchControllerSettings.marginY,
+                            onValueChange = {
+                                viewModel.updateTouchControllerSettings(
+                                    touchControllerSettings.copy(marginY = it),
+                                )
+                            },
+                        )
+                    }
+                    if (controllerConfig.allowTouchRotation) {
+                        MenuEditTouchControlRow(
+                            icon = Icons.Default.RotateLeft,
+                            label = stringResource(R.string.touch_customize_rotate),
+                            iconRotation = 0f,
+                            value = touchControllerSettings.rotation,
+                        ) {
+                            Slider(
+                                value = touchControllerSettings.rotation,
+                                onValueChange = {
+                                    viewModel.updateTouchControllerSettings(
+                                        touchControllerSettings.copy(rotation = it),
+                                    )
+                                },
+                            )
+                        }
+                    }
                 }
+
+                HorizontalDivider()
 
                 // ── Macro buttons section ──────────────────────────────
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.OpenWith,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.macro_section_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(
-                        onClick = { showAddMacroDialog = true },
-                        enabled = macroButtons.size < MacroButton.MAX_BUTTONS,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = stringResource(R.string.macro_add_button),
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-
-                if (macroButtons.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.macro_empty_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 28.dp, bottom = 4.dp),
-                    )
-                } else {
-                    macroButtons.forEach { btn ->
-                        MacroButtonListItem(
-                            btn = btn,
-                            onDelete = { viewModel.deleteMacro(btn.id) },
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    TextButton(
-                        onClick = { viewModel.enterMacroDragMode() },
-                        modifier = Modifier.align(Alignment.End),
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             imageVector = Icons.Default.OpenWith,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary,
                         )
-                        Spacer(Modifier.width(4.dp))
-                        Text(stringResource(R.string.macro_position_button))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.macro_section_title),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(bottom = 2.dp),
+                        )
+                        IconButton(
+                            onClick = { showAddMacroDialog = true },
+                            enabled = macroButtons.size < MacroButton.MAX_BUTTONS,
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = stringResource(R.string.macro_add_button),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+
+                    if (macroButtons.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.macro_empty_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
+                        )
+                    } else {
+                        macroButtons.forEach { btn ->
+                            MacroButtonListItem(
+                                btn = btn,
+                                onDelete = { viewModel.deleteMacro(btn.id) },
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        TextButton(
+                            onClick = { viewModel.enterMacroDragMode() },
+                            modifier = Modifier.align(Alignment.End),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenWith,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(R.string.macro_position_button))
+                        }
                     }
                 }
 
                 // ── Reset / Done buttons ───────────────────────────────
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider()
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(
-                        onClick = { viewModel.resetTouchControls() },
-                        modifier = Modifier.padding(8.dp),
-                    ) {
+                    OutlinedButton(onClick = { viewModel.resetTouchControls() }) {
                         Text(text = stringResource(R.string.touch_customize_button_reset))
                     }
-                    TextButton(
-                        onClick = { viewModel.showEditControls(false) },
-                        modifier = Modifier.padding(8.dp),
-                    ) {
+                    FilledTonalButton(onClick = { viewModel.showEditControls(false) }) {
                         Text(text = stringResource(R.string.touch_customize_button_done))
                     }
                 }
@@ -720,19 +802,38 @@ private fun MacroKeyGrid(
 private fun MenuEditTouchControlRow(
     icon: ImageVector,
     label: String,
-    rotation: Float,
+    iconRotation: Float = 0f,
+    value: Float? = null,
     slider: @Composable () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            modifier = Modifier.rotate(rotation),
-            imageVector = icon,
-            contentDescription = label,
-        )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier
+                    .rotate(iconRotation)
+                    .size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (value != null) {
+                Text(
+                    text = "${(value * 100).roundToInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
         slider()
     }
 }
