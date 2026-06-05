@@ -377,10 +377,7 @@ private fun MenuEditTouchControls(
                 .wrapContentHeight(),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
-                    .verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 // ── Dialog header ──────────────────────────────────────
@@ -418,6 +415,14 @@ private fun MenuEditTouchControls(
                     }
                 }
                 HorizontalDivider()
+
+                // ── Scrollable body ────────────────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
 
                 // ── Layout section ─────────────────────────────────────
                 Column(
@@ -567,7 +572,9 @@ private fun MenuEditTouchControls(
                     }
                 }
 
-                // ── Reset / Done buttons ───────────────────────────────
+                } // end scrollable body
+
+                // ── Sticky footer: Reset / Done ────────────────────────
                 HorizontalDivider()
                 Row(
                     modifier = Modifier
