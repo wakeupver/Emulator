@@ -17,6 +17,7 @@
 
 #include "vfs.h"
 
+#include <cerrno>
 #include <unistd.h>
 #include <optional>
 
@@ -130,14 +131,24 @@ struct retro_vfs_file_handle* VFS::virtualOpen(const char *path, unsigned int mo
 
     LOGD("VFS Performing virtual file open: %s", virtualFile->getFileName().data());
 
-    auto stream = new retro_vfs_file_handle;
-
     int duplicateFD = dup(virtualFile->getFD());
+    if (duplicateFD < 0) {
+        LOGE("VFS virtualOpen: dup() failed for fd=%d (errno=%d)", virtualFile->getFD(), errno);
+        return nullptr;
+    }
+
     FILE* file = fdopen(duplicateFD, "rb");
+    if (!file) {
+        LOGE("VFS virtualOpen: fdopen() failed for fd=%d (errno=%d)", duplicateFD, errno);
+        ::close(duplicateFD);
+        return nullptr;
+    }
+
     size_t size = Utils::getFileSize(file);
 
-    LOGV("VFS Virtual file size: %i", size);
+    LOGV("VFS Virtual file size: %zu", size);
 
+    auto stream = new retro_vfs_file_handle;
     stream->fd = duplicateFD;
     stream->hints = hints;
     stream->size = size;

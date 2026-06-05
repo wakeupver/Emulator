@@ -90,6 +90,17 @@ class GameViewModelRetroGameView(
     var retroGameView: GLRetroView? by MutableStateProperty(retroGameViewFlow)
 
     /**
+     * Raw Linux file-descriptor integers detached via
+     * [android.os.ParcelFileDescriptor.detachFd] for the PPSSPP-style direct-load path.
+     *
+     * Stored *outside* [gameState] so [closeOpenFds] can reach them regardless of which
+     * state the machine is in when [BaseGameScreenViewModel.onCleared] fires.
+     * By the time onCleared() runs the state is [GameState.Ready], not [GameState.Loaded],
+     * so reading from gameState for this purpose would always return an empty list.
+     */
+    private var detachedFds: List<Int> = emptyList()
+
+    /**
      * Returns the game state stream.
      *
      * No debounce is applied here — callers observe raw transitions and can apply their own
@@ -103,19 +114,21 @@ class GameViewModelRetroGameView(
      * [android.os.ParcelFileDescriptor.detachFd] during the PPSSPP-style direct load.
      *
      * Call this from [BaseGameScreenViewModel.onCleared] when the game session ends.
+     *
+     * NOTE: We read from [detachedFds] — a dedicated field — not from [gameState].
+     * By the time onCleared() fires the state machine is in [GameState.Ready], not
+     * [GameState.Loaded], so casting gameState would always yield null here.
      */
     fun closeOpenFds() {
-        val romFiles = (gameState.value as? GameState.Loaded)?.gameData?.gameFiles
-        (romFiles as? RomFiles.Standard)
-            ?.detachedFds
-            ?.forEach { rawFd ->
-                runCatching {
-                    android.os.ParcelFileDescriptor.adoptFd(rawFd).close()
-                    Timber.d("GameViewModelRetroGameView: closed detached fd=$rawFd")
-                }.onFailure {
-                    Timber.w(it, "GameViewModelRetroGameView: failed to close fd=$rawFd")
-                }
+        detachedFds.forEach { rawFd ->
+            runCatching {
+                android.os.ParcelFileDescriptor.adoptFd(rawFd).close()
+                Timber.d("GameViewModelRetroGameView: closed detached fd=$rawFd")
+            }.onFailure {
+                Timber.w(it, "GameViewModelRetroGameView: failed to close fd=$rawFd")
             }
+        }
+        detachedFds = emptyList()
     }
 
     /**
@@ -180,6 +193,11 @@ class GameViewModelRetroGameView(
                         when (loadingState) {
                             is GameLoader.LoadingState.Ready -> {
                                 Timber.i("GameLoader: data ready, building RetroViewData")
+                                // Capture detached fds now, before state transitions to Ready.
+                                // closeOpenFds() fires in onCleared() when state == Ready,
+                                // so reading detachedFds from gameState there would always miss.
+                                detachedFds = (loadingState.gameData.gameFiles as? RomFiles.Standard)
+                                    ?.detachedFds ?: emptyList()
                                 val retroViewData =
                                     buildRetroViewData(
                                         applicationContext,

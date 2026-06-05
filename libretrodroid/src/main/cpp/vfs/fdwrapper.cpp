@@ -29,7 +29,7 @@ libretrodroid::FDWrapper::FDWrapper(int rawFd) : fd(::dup(rawFd)) {
 }
 
 libretrodroid::FDWrapper::~FDWrapper() {
-    if (fd > 0) {
+    if (fd >= 0) {
         close(fd);
         fd = -1;
     }
