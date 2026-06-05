@@ -13,7 +13,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -292,11 +291,10 @@ class GameMenuActivity : RetrogradeComponentActivity() {
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize(),
         ) {
-            // Semi-transparent scrim: tapping it dismisses the menu
+            // Area transparan: tap di luar panel untuk dismiss
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
