@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swordfish.lemuroid.app.utils.games.GameUtils
@@ -19,11 +20,7 @@ fun LemuroidGameTexts(
     game: Game,
 ) {
     val context = LocalContext.current
-    val subtitle =
-        remember(game.id) {
-            GameUtils.getGameSubtitle(context, game)
-        }
-
+    val subtitle = remember(game.id) { GameUtils.getGameSubtitle(context, game) }
     LemuroidTexts(modifier, game.title, subtitle)
 }
 
@@ -34,19 +31,23 @@ fun LemuroidTexts(
     subtitle: String,
 ) {
     Column(
-        modifier = modifier.padding(8.dp),
+        modifier = modifier.padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (subtitle.isNotEmpty()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
