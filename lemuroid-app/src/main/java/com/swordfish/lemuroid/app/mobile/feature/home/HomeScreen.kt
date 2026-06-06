@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,19 +40,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.lifecycle.Lifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -66,7 +70,7 @@ import com.swordfish.lemuroid.common.displayDetailsSettingsScreen
 import com.swordfish.lemuroid.lib.library.db.entity.Game
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public entry-point (same signature as before — no breaking changes)
+// Public entry-point — same external signature, no breaking changes
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun HomeScreen(
@@ -129,200 +133,257 @@ private fun HomeScreen(
     onSetDirectoryClicked: () -> Unit,
     onSelectStorageLocationClicked: () -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .padding(top = 12.dp, bottom = 32.dp),
-    ) {
-        // ── Top bar ──────────────────────────────────────────────────────────
-        HomeTopBar()
+    // ── Collapse state ───────────────────────────────────────────────────────
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
 
-        Spacer(Modifier.height(22.dp))
+    // Fully collapsed after scrolling ~100 dp worth of content
+    val thresholdPx = remember(density) { with(density) { 100.dp.toPx() } }
+    val fraction by remember {
+        derivedStateOf { (scrollState.value.toFloat() / thresholdPx).coerceIn(0f, 1f) }
+    }
 
-        // ── Greeting ─────────────────────────────────────────────────────────
-        Text(
-            text = "Let's Play",
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Black,
-        )
-        Text(
-            text = "Your games are ready for you.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    val expandedHeaderDp = 156.dp   // logo + "Let's Play" + subtitle
+    val collapsedHeaderDp = 56.dp   // standard TopAppBar height
 
-        Spacer(Modifier.height(22.dp))
-
-        // ── Compact notification banners ──────────────────────────────────────
-        AnimatedVisibility(state.showNoNotificationPermissionCard) {
-            HomeNotificationBanner(
-                message = stringResource(R.string.home_notification_title),
-                actionId = R.string.home_notification_action,
-                onAction = onEnableNotificationsClicked,
-            )
-        }
-        AnimatedVisibility(state.showStorageLocationCard) {
-            HomeNotificationBanner(
-                message = stringResource(R.string.home_storage_location_title),
-                actionId = R.string.home_storage_location_action,
-                onAction = onSelectStorageLocationClicked,
-            )
-        }
-        AnimatedVisibility(state.showNoGamesCard) {
-            HomeNotificationBanner(
-                message = stringResource(R.string.home_empty_title),
-                actionId = R.string.home_empty_action,
-                onAction = onSetDirectoryClicked,
-                enabled = !state.indexInProgress,
-            )
-        }
-        AnimatedVisibility(state.showNoMicrophonePermissionCard) {
-            HomeNotificationBanner(
-                message = stringResource(R.string.home_microphone_title),
-                actionId = R.string.home_microphone_action,
-                onAction = onEnableMicrophoneClicked,
-            )
-        }
-        AnimatedVisibility(state.showDesmumeDeprecatedCard) {
-            HomeNotificationBanner(
-                message = stringResource(R.string.home_notification_desmume_deprecated_title),
-                actionId = R.string.home_notification_desmume_deprecated_action,
-                onAction = onOpenCoreSelection,
-            )
-        }
-
-        // ── Bento grid ────────────────────────────────────────────────────────
-        val lastGame = state.recentGames.firstOrNull()
-
-        Row(
+    Box(modifier = modifier.fillMaxSize()) {
+        // ── Scrollable content — starts below the expanded header ────────────
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(230.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(top = expandedHeaderDp)
+                .padding(horizontal = 20.dp, bottom = 32.dp),
         ) {
-            // Left: tall "Continue Playing" card (lavender)
-            BentoContinuePlayingCard(
-                game = lastGame,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                onClick = { lastGame?.let(onGameClicked) },
-                onLongClick = { lastGame?.let(onGameLongClick) },
-            )
+            // ── Notification banners ─────────────────────────────────────────
+            AnimatedVisibility(state.showNoNotificationPermissionCard) {
+                HomeNotificationBanner(
+                    message = stringResource(R.string.home_notification_title),
+                    actionId = R.string.home_notification_action,
+                    onAction = onEnableNotificationsClicked,
+                )
+            }
+            AnimatedVisibility(state.showStorageLocationCard) {
+                HomeNotificationBanner(
+                    message = stringResource(R.string.home_storage_location_title),
+                    actionId = R.string.home_storage_location_action,
+                    onAction = onSelectStorageLocationClicked,
+                )
+            }
+            AnimatedVisibility(state.showNoGamesCard) {
+                HomeNotificationBanner(
+                    message = stringResource(R.string.home_empty_title),
+                    actionId = R.string.home_empty_action,
+                    onAction = onSetDirectoryClicked,
+                    enabled = !state.indexInProgress,
+                )
+            }
+            AnimatedVisibility(state.showNoMicrophonePermissionCard) {
+                HomeNotificationBanner(
+                    message = stringResource(R.string.home_microphone_title),
+                    actionId = R.string.home_microphone_action,
+                    onAction = onEnableMicrophoneClicked,
+                )
+            }
+            AnimatedVisibility(state.showDesmumeDeprecatedCard) {
+                HomeNotificationBanner(
+                    message = stringResource(R.string.home_notification_desmume_deprecated_title),
+                    actionId = R.string.home_notification_desmume_deprecated_action,
+                    onAction = onOpenCoreSelection,
+                )
+            }
 
-            // Right: two stacked action cards
-            Column(
+            // ── Bento grid ───────────────────────────────────────────────────
+            val lastGame = state.recentGames.firstOrNull()
+
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .fillMaxWidth()
+                    .height(230.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Top-right (yellow): Scan Library
-                BentoActionCard(
-                    icon = Icons.Default.VideogameAsset,
-                    title = "Game\nSystems",
-                    badge = null,
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                // Left: tall "Continue Playing" card
+                BentoContinuePlayingCard(
+                    game = lastGame,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    onClick = onOpenSystems,
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    onClick = { lastGame?.let(onGameClicked) },
+                    onLongClick = { lastGame?.let(onGameLongClick) },
                 )
-                // Bottom-right (dark): My Favorites
-                BentoActionCard(
-                    icon = Icons.Default.Favorite,
-                    title = "My\nFavorites",
-                    containerColor = MaterialTheme.colorScheme.inverseSurface,
-                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+
+                // Right: two stacked action cards
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    onClick = onOpenFavorites,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(30.dp))
-
-        // ── Recent Games section ──────────────────────────────────────────────
-        if (state.recentGames.isNotEmpty()) {
-            HomeSectionHeader(title = stringResource(id = R.string.recent))
-            Spacer(Modifier.height(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.recentGames.take(5).forEach { game ->
-                    HomeGameListItem(
-                        game = game,
-                        accentColor = MaterialTheme.colorScheme.primaryContainer,
-                        onAccentContent = MaterialTheme.colorScheme.onPrimaryContainer,
-                        onClick = { onGameClicked(game) },
-                        onLongClick = { onGameLongClick(game) },
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    BentoActionCard(
+                        icon = Icons.Default.VideogameAsset,
+                        title = "Game\nSystems",
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        onClick = onOpenSystems,
+                    )
+                    BentoActionCard(
+                        icon = Icons.Default.Favorite,
+                        title = "My\nFavorites",
+                        containerColor = MaterialTheme.colorScheme.inverseSurface,
+                        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        onClick = onOpenFavorites,
                     )
                 }
             }
-            Spacer(Modifier.height(28.dp))
-        }
 
-        // ── Favorites section ────────────────────────────────────────────────
-        if (state.favoritesGames.isNotEmpty()) {
-            HomeSectionHeader(title = stringResource(id = R.string.favorites))
-            Spacer(Modifier.height(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.favoritesGames.take(4).forEach { game ->
-                    HomeGameListItem(
-                        game = game,
-                        accentColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        onAccentContent = MaterialTheme.colorScheme.onTertiaryContainer,
-                        onClick = { onGameClicked(game) },
-                        onLongClick = { onGameLongClick(game) },
-                    )
+            Spacer(Modifier.height(30.dp))
+
+            // ── Recent games ─────────────────────────────────────────────────
+            if (state.recentGames.isNotEmpty()) {
+                HomeSectionHeader(title = stringResource(id = R.string.recent))
+                Spacer(Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.recentGames.take(5).forEach { game ->
+                        HomeGameListItem(
+                            game = game,
+                            accentColor = MaterialTheme.colorScheme.primaryContainer,
+                            onAccentContent = MaterialTheme.colorScheme.onPrimaryContainer,
+                            onClick = { onGameClicked(game) },
+                            onLongClick = { onGameLongClick(game) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(28.dp))
+            }
+
+            // ── Favorites ────────────────────────────────────────────────────
+            if (state.favoritesGames.isNotEmpty()) {
+                HomeSectionHeader(title = stringResource(id = R.string.favorites))
+                Spacer(Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.favoritesGames.take(4).forEach { game ->
+                        HomeGameListItem(
+                            game = game,
+                            accentColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            onAccentContent = MaterialTheme.colorScheme.onTertiaryContainer,
+                            onClick = { onGameClicked(game) },
+                            onLongClick = { onGameLongClick(game) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(28.dp))
+            }
+
+            // ── Discover ─────────────────────────────────────────────────────
+            if (state.discoveryGames.isNotEmpty()) {
+                HomeSectionHeader(title = stringResource(id = R.string.discover))
+                Spacer(Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.discoveryGames.take(4).forEach { game ->
+                        HomeGameListItem(
+                            game = game,
+                            accentColor = MaterialTheme.colorScheme.secondaryContainer,
+                            onAccentContent = MaterialTheme.colorScheme.onSecondaryContainer,
+                            onClick = { onGameClicked(game) },
+                            onLongClick = { onGameLongClick(game) },
+                        )
+                    }
                 }
             }
-            Spacer(Modifier.height(28.dp))
         }
 
-        // ── Discover section ────────────────────────────────────────────────
-        if (state.discoveryGames.isNotEmpty()) {
-            HomeSectionHeader(title = stringResource(id = R.string.discover))
-            Spacer(Modifier.height(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.discoveryGames.take(4).forEach { game ->
-                    HomeGameListItem(
-                        game = game,
-                        accentColor = MaterialTheme.colorScheme.secondaryContainer,
-                        onAccentContent = MaterialTheme.colorScheme.onSecondaryContainer,
-                        onClick = { onGameClicked(game) },
-                        onLongClick = { onGameLongClick(game) },
-                    )
-                }
-            }
-        }
+        // ── Pinned collapsing header — overlaid at top ───────────────────────
+        HomeCollapsingHeader(
+            modifier = Modifier.fillMaxWidth(),
+            fraction = fraction,
+            expandedHeight = expandedHeaderDp,
+            collapsedHeight = collapsedHeaderDp,
+        )
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Top bar
+// Collapsing header
+//   fraction = 0  → fully expanded : big "Let's Play" + subtitle visible
+//   fraction = 1  → fully collapsed: app name visible, small bar
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun HomeTopBar() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
+private fun HomeCollapsingHeader(
+    modifier: Modifier = Modifier,
+    fraction: Float,
+    expandedHeight: androidx.compose.ui.unit.Dp,
+    collapsedHeight: androidx.compose.ui.unit.Dp,
+) {
+    val headerHeight = lerp(expandedHeight, collapsedHeight, fraction)
+    val appName = stringResource(R.string.app_name)
+
+    // Expanded content fades out in first 60% of scroll; collapsed fades in after 40%
+    val expandedAlpha = (1f - fraction / 0.6f).coerceIn(0f, 1f)
+    val collapsedAlpha = ((fraction - 0.4f) / 0.6f).coerceIn(0f, 1f)
+
+    Surface(
+        modifier = modifier.height(headerHeight),
+        color = MaterialTheme.colorScheme.background,
+        shadowElevation = lerp(0.dp, 4.dp, fraction),
     ) {
-        // Logo circle only — no text, no settings icon
-        Surface(
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.onBackground,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
         ) {
-            Icon(
-                imageVector = Icons.Default.VideogameAsset,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.background,
+            // Logo circle — always at top-left
+            Surface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(9.dp),
+                    .align(Alignment.TopStart)
+                    .padding(top = 8.dp)
+                    .size(40.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.onBackground,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.VideogameAsset,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.background,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(9.dp),
+                )
+            }
+
+            // ── Expanded state: greeting at the bottom of the header ─────────
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(bottom = 14.dp)
+                    .alpha(expandedAlpha),
+            ) {
+                Text(
+                    text = "Let's Play",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Black,
+                )
+                Text(
+                    text = "Your games are ready for you.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // ── Collapsed state: app name next to logo, centred vertically ───
+            Text(
+                text = appName,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 52.dp)   // 40dp logo + 12dp gap
+                    .alpha(collapsedAlpha),
             )
         }
     }
@@ -354,7 +415,7 @@ private fun BentoContinuePlayingCard(
                 .fillMaxSize()
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         ) {
-            // Cover art (if game available)
+            // Cover art background
             if (game != null) {
                 val fallbackDrawable = remember(game) { CoverUtils.getFallbackDrawable(game) }
                 val fallbackPainter = rememberDrawablePainter(fallbackDrawable)
@@ -368,16 +429,16 @@ private fun BentoContinuePlayingCard(
                 )
             }
 
-            // Gradient scrim — clear at top, opaque at bottom
+            // Gradient scrim
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
                             colorStops = arrayOf(
-                                0.00f to primaryContainer.copy(alpha = if (game != null) 0.08f else 1.0f),
+                                0.00f to primaryContainer.copy(alpha = if (game != null) 0.08f else 1f),
                                 0.40f to Color.Transparent,
-                                0.60f to primaryContainer.copy(alpha = 0.55f),
+                                0.62f to primaryContainer.copy(alpha = 0.55f),
                                 1.00f to primaryContainer.copy(alpha = 0.97f),
                             ),
                         ),
@@ -431,7 +492,7 @@ private fun BentoContinuePlayingCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bento — right action cards (Scan Library / Select Core)
+// Bento — right action cards
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun BentoActionCard(
@@ -451,7 +512,6 @@ private fun BentoActionCard(
         onClick = onClick,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Optional "New" badge — top-right
             if (badge != null) {
                 Surface(
                     modifier = Modifier
@@ -469,14 +529,12 @@ private fun BentoActionCard(
                     )
                 }
             }
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(14.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                // Icon circle
                 Surface(
                     modifier = Modifier.size(36.dp),
                     shape = CircleShape,
@@ -491,8 +549,6 @@ private fun BentoActionCard(
                             .padding(8.dp),
                     )
                 }
-
-                // Title text at bottom
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelLarge,
@@ -506,7 +562,7 @@ private fun BentoActionCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section header: "Recent Search" style — bold left + "See All" right
+// Section header
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HomeSectionHeader(title: String) {
@@ -529,7 +585,7 @@ private fun HomeSectionHeader(title: String) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Game list row — "Recent Search" item style with circle icon + MoreVert
+// Game list item (pill row)
 // ─────────────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -557,7 +613,6 @@ private fun HomeGameListItem(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Circle cover art (matches the colored circles in the screenshot)
             Box(
                 modifier = Modifier
                     .size(46.dp)
@@ -576,8 +631,6 @@ private fun HomeGameListItem(
                     error = fallbackPainter,
                 )
             }
-
-            // Title + subtitle
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -600,8 +653,6 @@ private fun HomeGameListItem(
                     )
                 }
             }
-
-            // "..." button (triggers long-click popup)
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = "More",
@@ -615,7 +666,7 @@ private fun HomeGameListItem(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Compact notification banner (replaces full-card variant)
+// Compact notification banner
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HomeNotificationBanner(
