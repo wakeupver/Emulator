@@ -184,7 +184,7 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                         onUpdateQueryString = { mainViewModel.changeQueryString(it) },
                     )
                 },
-                bottomBar = { MainNavigationBar(currentRoute, navController) },
+
             ) { padding ->
                 NavHost(
                     modifier = Modifier.fillMaxSize(),
@@ -207,6 +207,8 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                             onGameClick = onGameClick,
                             onGameLongClick = onGameLongClick,
                             onOpenCoreSelection = { navController.navigateToRoute(MainRoute.SETTINGS_CORES_SELECTION) },
+                            onOpenSystems = { navController.navigateToRoute(MainRoute.SYSTEMS) },
+                            onOpenFavorites = { navController.navigateToRoute(MainRoute.FAVORITES) },
                         )
                     }
                     composable(MainRoute.FAVORITES) {

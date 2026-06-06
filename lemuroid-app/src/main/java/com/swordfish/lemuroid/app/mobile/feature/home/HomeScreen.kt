@@ -26,10 +26,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Card
@@ -76,6 +75,8 @@ fun HomeScreen(
     onGameClick: (Game) -> Unit,
     onGameLongClick: (Game) -> Unit,
     onOpenCoreSelection: () -> Unit,
+    onOpenSystems: () -> Unit,
+    onOpenFavorites: () -> Unit,
 ) {
     val context = LocalContext.current
     val applicationContext = context.applicationContext
@@ -99,6 +100,8 @@ fun HomeScreen(
         onGameClick,
         onGameLongClick,
         onOpenCoreSelection,
+        onOpenSystems,
+        onOpenFavorites,
         {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@HomeScreen
             permissionsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -119,6 +122,8 @@ private fun HomeScreen(
     onGameClicked: (Game) -> Unit,
     onGameLongClick: (Game) -> Unit,
     onOpenCoreSelection: () -> Unit,
+    onOpenSystems: () -> Unit,
+    onOpenFavorites: () -> Unit,
     onEnableNotificationsClicked: () -> Unit,
     onEnableMicrophoneClicked: () -> Unit,
     onSetDirectoryClicked: () -> Unit,
@@ -215,26 +220,26 @@ private fun HomeScreen(
             ) {
                 // Top-right (yellow): Scan Library
                 BentoActionCard(
-                    icon = Icons.Default.FolderOpen,
-                    title = "Scan\nLibrary",
-                    badge = if (state.showNoGamesCard) "New" else null,
+                    icon = Icons.Default.VideogameAsset,
+                    title = "Game\nSystems",
+                    badge = null,
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    onClick = onSetDirectoryClicked,
+                    onClick = onOpenSystems,
                 )
-                // Bottom-right (dark): Core selection
+                // Bottom-right (dark): My Favorites
                 BentoActionCard(
-                    icon = Icons.Default.Settings,
-                    title = "Select\nCore",
+                    icon = Icons.Default.Favorite,
+                    title = "My\nFavorites",
                     containerColor = MaterialTheme.colorScheme.inverseSurface,
                     contentColor = MaterialTheme.colorScheme.inverseOnSurface,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    onClick = onOpenCoreSelection,
+                    onClick = onOpenFavorites,
                 )
             }
         }
@@ -305,7 +310,7 @@ private fun HomeTopBar() {
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Logo circle (dark)
+        // Logo circle only — no text, no settings icon
         Surface(
             modifier = Modifier.size(40.dp),
             shape = CircleShape,
@@ -318,29 +323,6 @@ private fun HomeTopBar() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(9.dp),
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        // App name
-        Text(
-            text = "Emulator",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.weight(1f))
-        // Settings avatar button
-        Surface(
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(10.dp),
             )
         }
     }
