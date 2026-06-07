@@ -87,9 +87,9 @@ fun HomeScreen(
     onOpenFavorites: () -> Unit,
     onHelpPressed: () -> Unit,
     onSettingsClick: () -> Unit,
-    saveSyncEnabled: Boolean,
-    operationInProgress: Boolean,
-    onSyncClick: () -> Unit,
+    saveSyncEnabled: Boolean = false,
+    operationInProgress: Boolean = false,
+    onSyncClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val applicationContext = context.applicationContext
@@ -163,7 +163,7 @@ private fun HomeScreen(
     val collapsedHeaderDp = 56.dp
 
     Box(modifier = modifier.fillMaxSize()) {
-        // ── Scrollable content ───────────────────────────────────────────────
+        // ── Scrollable body ──────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -175,7 +175,7 @@ private fun HomeScreen(
                     bottom = 32.dp,
                 )),
         ) {
-            // Notification banners
+            // ── Notification banners ─────────────────────────────────────────
             AnimatedVisibility(state.showNoNotificationPermissionCard) {
                 HomeNotificationBanner(
                     message = stringResource(R.string.home_notification_title),
@@ -215,6 +215,7 @@ private fun HomeScreen(
 
             // ── Bento grid ───────────────────────────────────────────────────
             val lastGame = state.recentGames.firstOrNull()
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -233,7 +234,7 @@ private fun HomeScreen(
                 ) {
                     BentoActionCard(
                         icon = Icons.Default.VideogameAsset,
-                        title = stringResource(R.string.title_systems),
+                        title = "Game\nSystems",
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -241,7 +242,7 @@ private fun HomeScreen(
                     )
                     BentoActionCard(
                         icon = Icons.Default.Favorite,
-                        title = stringResource(R.string.favorites),
+                        title = "My\nFavorites",
                         containerColor = MaterialTheme.colorScheme.inverseSurface,
                         contentColor = MaterialTheme.colorScheme.inverseOnSurface,
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -252,7 +253,7 @@ private fun HomeScreen(
 
             Spacer(Modifier.height(30.dp))
 
-            // ── Recent games ─────────────────────────────────────────────────
+            // ── Recent ───────────────────────────────────────────────────────
             if (state.recentGames.isNotEmpty()) {
                 HomeSectionHeader(title = stringResource(R.string.recent))
                 Spacer(Modifier.height(12.dp))
@@ -322,7 +323,9 @@ private fun HomeScreen(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Collapsing header  (fraction 0 = expanded, 1 = collapsed)
+// Collapsing header
+//   fraction = 0 → expanded  : big greeting visible, actions at top-right
+//   fraction = 1 → collapsed : app name visible, same actions at top-right
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HomeCollapsingHeader(
@@ -337,8 +340,11 @@ private fun HomeCollapsingHeader(
     onSyncClick: () -> Unit,
 ) {
     val headerHeight = lerp(expandedHeight, collapsedHeight, fraction)
+    val appName = stringResource(R.string.lemuroid_name)
 
+    // Expanded content fades out in first 60% of scroll
     val expandedAlpha = (1f - fraction / 0.6f).coerceIn(0f, 1f)
+    // Collapsed content fades in after 40% of scroll
     val collapsedAlpha = ((fraction - 0.4f) / 0.6f).coerceIn(0f, 1f)
 
     Surface(
@@ -349,13 +355,13 @@ private fun HomeCollapsingHeader(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 4.dp), // slight inset so IconButtons align nicely
         ) {
-            // ── Logo circle — top-left ────────────────────────────────────────
+            // ── Logo circle — always at top-left ────────────────────────────
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 8.dp)
+                    .padding(start = 16.dp, top = 8.dp)
                     .size(40.dp),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -370,18 +376,17 @@ private fun HomeCollapsingHeader(
                 )
             }
 
-            // ── Action buttons — top-right ────────────────────────────────────
+            // ── Action icons — always at top-right ───────────────────────────
+            // Mirrors LemuroidTopBarActions: Info | CloudSync? | Settings
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 4.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(top = 4.dp),
             ) {
                 IconButton(onClick = onHelpPressed) {
                     Icon(
                         imageVector = Icons.Outlined.Info,
                         contentDescription = stringResource(R.string.mobile_settings_help),
-                        tint = MaterialTheme.colorScheme.onBackground,
                     )
                 }
                 if (saveSyncEnabled) {
@@ -392,7 +397,6 @@ private fun HomeCollapsingHeader(
                         Icon(
                             imageVector = Icons.Outlined.CloudSync,
                             contentDescription = stringResource(R.string.save_sync),
-                            tint = MaterialTheme.colorScheme.onBackground,
                         )
                     }
                 }
@@ -400,16 +404,15 @@ private fun HomeCollapsingHeader(
                     Icon(
                         imageVector = Icons.Outlined.Settings,
                         contentDescription = stringResource(R.string.settings),
-                        tint = MaterialTheme.colorScheme.onBackground,
                     )
                 }
             }
 
-            // ── Expanded state: greeting at bottom ────────────────────────────
+            // ── Expanded greeting — at the bottom of the header ──────────────
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(bottom = 14.dp)
+                    .padding(start = 20.dp, bottom = 14.dp)
                     .alpha(expandedAlpha),
             ) {
                 Text(
@@ -424,14 +427,14 @@ private fun HomeCollapsingHeader(
                 )
             }
 
-            // ── Collapsed state: app name next to logo ────────────────────────
+            // ── Collapsed app name — next to logo, centred vertically ────────
             Text(
-                text = stringResource(R.string.lemuroid_name),
+                text = appName,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 52.dp)
+                    .padding(start = 68.dp) // 16 inset + 40 logo + 12 gap
                     .alpha(collapsedAlpha),
             )
         }
@@ -439,7 +442,7 @@ private fun HomeCollapsingHeader(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bento — left tall card (Continue Playing)
+// Bento — left tall card
 // ─────────────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -539,7 +542,6 @@ private fun BentoActionCard(
     icon: ImageVector,
     title: String,
     modifier: Modifier = Modifier,
-    badge: String? = null,
     containerColor: Color,
     contentColor: Color,
     onClick: () -> Unit,
@@ -551,46 +553,29 @@ private fun BentoActionCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (badge != null) {
-                Surface(
-                    modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFFF5C5C),
-                ) {
-                    Text(
-                        text = badge,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                    )
-                }
-            }
-            Column(
-                modifier = Modifier.fillMaxSize().padding(14.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
+        Column(
+            modifier = Modifier.fillMaxSize().padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Surface(
+                modifier = Modifier.size(36.dp),
+                shape = CircleShape,
+                color = contentColor.copy(alpha = 0.14f),
             ) {
-                Surface(
-                    modifier = Modifier.size(36.dp),
-                    shape = CircleShape,
-                    color = contentColor.copy(alpha = 0.14f),
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = contentColor,
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
-                    )
-                }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor,
-                    lineHeight = MaterialTheme.typography.labelLarge.fontSize * 1.25,
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.fillMaxSize().padding(8.dp),
                 )
             }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = contentColor,
+                lineHeight = MaterialTheme.typography.labelLarge.fontSize * 1.25,
+            )
         }
     }
 }
@@ -619,7 +604,7 @@ private fun HomeSectionHeader(title: String) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Game list item (pill row)
+// Game list row (pill)
 // ─────────────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -731,10 +716,7 @@ private fun HomeNotificationBanner(
                 enabled = enabled,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
             ) {
-                Text(
-                    text = stringResource(id = actionId),
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                Text(stringResource(id = actionId), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
