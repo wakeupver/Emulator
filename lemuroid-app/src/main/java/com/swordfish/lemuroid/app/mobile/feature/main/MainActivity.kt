@@ -26,6 +26,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fredporciuncula.flow.preferences.FlowSharedPreferences
 import com.swordfish.lemuroid.R
+import com.swordfish.lemuroid.app.shared.savesync.SaveSyncWork
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesScreen
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesViewModel
 import com.swordfish.lemuroid.app.mobile.feature.games.GamesScreen
@@ -212,6 +213,11 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                             onOpenCoreSelection = { navController.navigateToRoute(MainRoute.SETTINGS_CORES_SELECTION) },
                             onOpenSystems = { navController.navigateToRoute(MainRoute.SYSTEMS) },
                             onOpenFavorites = { navController.navigateToRoute(MainRoute.FAVORITES) },
+                            onHelpPressed = onHelpPressed,
+                            onSettingsClick = { navController.navigate(MainRoute.SETTINGS.route) },
+                            saveSyncEnabled = mainUIState.saveSyncEnabled,
+                            operationInProgress = mainUIState.operationInProgress,
+                            onSyncClick = { SaveSyncWork.enqueueManualWork(applicationContext) },
                         )
                     }
                     composable(MainRoute.FAVORITES) {
