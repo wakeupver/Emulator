@@ -1,6 +1,6 @@
 <resources>
     <string name="lemuroid_name">Emulator</string>
-    <string name="home_greeting">Let's Play</string>
+    <string name="home_greeting">Let&apos;s Play</string>
     <string name="home_greeting_subtitle">Your games are ready for you.</string>
     <string name="title_home">Home</string>
     <string name="title_search">Search</string>
