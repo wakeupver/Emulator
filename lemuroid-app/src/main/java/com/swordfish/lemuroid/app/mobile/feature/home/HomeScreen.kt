@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.lifecycle.Lifecycle
@@ -152,8 +153,12 @@ private fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(top = expandedHeaderDp)
-                .padding(horizontal = 20.dp, bottom = 32.dp),
+                .padding(PaddingValues(
+                    top = expandedHeaderDp,
+                    start = 20.dp,
+                    end = 20.dp,
+                    bottom = 32.dp,
+                )),
         ) {
             // ── Notification banners ─────────────────────────────────────────
             AnimatedVisibility(state.showNoNotificationPermissionCard) {
@@ -317,11 +322,11 @@ private fun HomeScreen(
 private fun HomeCollapsingHeader(
     modifier: Modifier = Modifier,
     fraction: Float,
-    expandedHeight: androidx.compose.ui.unit.Dp,
-    collapsedHeight: androidx.compose.ui.unit.Dp,
+    expandedHeight: Dp,
+    collapsedHeight: Dp,
 ) {
     val headerHeight = lerp(expandedHeight, collapsedHeight, fraction)
-    val appName = stringResource(R.string.app_name)
+    val appName = "Emulator"
 
     // Expanded content fades out in first 60% of scroll; collapsed fades in after 40%
     val expandedAlpha = (1f - fraction / 0.6f).coerceIn(0f, 1f)
