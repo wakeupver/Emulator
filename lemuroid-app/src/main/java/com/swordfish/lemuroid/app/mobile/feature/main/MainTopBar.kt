@@ -2,24 +2,22 @@ package com.swordfish.lemuroid.app.mobile.feature.main
 
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,12 +39,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.shared.savesync.SaveSyncWork
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Public entry-point — wrapped in a Surface so it carries the same
+// background + drop-shadow as HomeCollapsingHeader.
+// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun MainTopBar(
     currentRoute: MainRoute,
@@ -55,21 +59,35 @@ fun MainTopBar(
     onUpdateQueryString: (String) -> Unit,
     mainUIState: MainViewModel.UiState,
 ) {
-    Column {
-        LemuroidTopAppBar(
-            route = currentRoute,
-            navController = navController,
-            mainUIState = mainUIState,
-            onHelpPressed = onHelpPressed,
-            onUpdateQueryString = onUpdateQueryString,
-        )
-
-        AnimatedVisibility(mainUIState.operationInProgress) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    // Surface provides background color + drop-shadow — matching HomeCollapsingHeader
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.background,
+        shadowElevation = 4.dp,
+    ) {
+        Column {
+            LemuroidTopAppBar(
+                route = currentRoute,
+                navController = navController,
+                mainUIState = mainUIState,
+                onHelpPressed = onHelpPressed,
+                onUpdateQueryString = onUpdateQueryString,
+            )
+            AnimatedVisibility(mainUIState.operationInProgress) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TopAppBar styled to match HomeCollapsingHeader (collapsed state):
+//   • Same colorScheme.background surface (Surface above is transparent here)
+//   • Root routes  → logo circle  (same circle as HomeCollapsingHeader)
+//   • Sub-routes   → back arrow
+//   • Title        → titleLarge + FontWeight.Bold
+//   • Actions      → Info | CloudSync? | Settings?
+// ─────────────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LemuroidTopAppBar(
@@ -80,9 +98,49 @@ fun LemuroidTopAppBar(
     onUpdateQueryString: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    val topBarColor = BottomAppBarDefaults.containerColor
 
     TopAppBar(
+        // ── Container: transparent so the outer Surface colour shows through ──
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent,
+            scrolledContainerColor = Color.Transparent,
+            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            actionIconContentColor = MaterialTheme.colorScheme.onBackground,
+        ),
+
+        // ── Nav icon: logo circle for root routes, back arrow for sub-routes ──
+        navigationIcon = {
+            if (route.parent != null) {
+                // Sub-route: back arrow
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                    )
+                }
+            } else {
+                // Root route: same filled circle as HomeCollapsingHeader
+                Surface(
+                    modifier = Modifier
+                        .padding(start = 16.dp)   // matches HomeCollapsingHeader
+                        .size(40.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.onBackground,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideogameAsset,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.background,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(9.dp),
+                    )
+                }
+            }
+        },
+
+        // ── Title: search view or bold page name ─────────────────────────────
         title = {
             if (route == MainRoute.SEARCH) {
                 LemuroidSearchView(
@@ -90,28 +148,17 @@ fun LemuroidTopAppBar(
                     onUpdateQueryString = onUpdateQueryString,
                 )
             } else {
-                Text(text = stringResource(route.titleId))
+                Text(
+                    text = stringResource(route.titleId),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         },
-        colors =
-            TopAppBarDefaults.topAppBarColors(
-                scrolledContainerColor = topBarColor,
-                containerColor = topBarColor,
-            ),
-        navigationIcon = {
-            AnimatedVisibility(
-                visible = route.parent != null,
-                enter = fadeIn(),
-                exit = fadeOut(),
-            ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        stringResource(id = R.string.back),
-                    )
-                }
-            }
-        },
+
+        // ── Actions: same as HomeCollapsingHeader (Info | CloudSync? | Settings?) ──
         actions = {
             LemuroidTopBarActions(
                 route = route,
@@ -125,6 +172,9 @@ fun LemuroidTopAppBar(
     )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Action icons — unchanged from original; extracted to allow HomeScreen reuse
+// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun LemuroidTopBarActions(
     route: MainRoute,
@@ -135,12 +185,10 @@ fun LemuroidTopBarActions(
     onHelpPressed: () -> Unit,
 ) {
     Row {
-        IconButton(
-            onClick = { onHelpPressed() },
-        ) {
+        IconButton(onClick = { onHelpPressed() }) {
             Icon(
-                Icons.Outlined.Info,
-                stringResource(R.string.mobile_settings_help),
+                imageVector = Icons.Outlined.Info,
+                contentDescription = stringResource(R.string.mobile_settings_help),
             )
         }
         if (saveSyncEnabled) {
@@ -149,8 +197,8 @@ fun LemuroidTopBarActions(
                 enabled = !operationsInProgress,
             ) {
                 Icon(
-                    Icons.Outlined.CloudSync,
-                    stringResource(R.string.save_sync),
+                    imageVector = Icons.Outlined.CloudSync,
+                    contentDescription = stringResource(R.string.save_sync),
                 )
             }
         }
@@ -159,14 +207,17 @@ fun LemuroidTopBarActions(
                 onClick = { navController.navigate(MainRoute.SETTINGS.route) },
             ) {
                 Icon(
-                    Icons.Outlined.Settings,
-                    stringResource(R.string.settings),
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = stringResource(R.string.settings),
                 )
             }
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Inline search field (Search route only)
+// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun LemuroidSearchView(
     mainUIState: MainViewModel.UiState,
@@ -179,42 +230,31 @@ private fun LemuroidSearchView(
         focusRequester.requestFocus()
     }
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(56.dp),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, end = 8.dp),
+        shape = RoundedCornerShape(100),
+        tonalElevation = 16.dp,
     ) {
-        Surface(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(top = 8.dp, bottom = 8.dp, end = 8.dp),
-            shape = RoundedCornerShape(100),
-            tonalElevation = 16.dp,
-        ) { }
-
         TextField(
             value = mainUIState.searchQuery,
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .focusRequester(focusRequester),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
             textStyle = MaterialTheme.typography.bodyMedium,
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             onValueChange = { onUpdateQueryString(it) },
             singleLine = true,
-            keyboardActions =
-                KeyboardActions(
-                    onDone = { focusManager.clearFocus(true) },
-                ),
-            colors =
-                TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
+            keyboardActions = KeyboardActions(
+                onDone = { focusManager.clearFocus(true) },
+            ),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+            ),
         )
     }
 }
