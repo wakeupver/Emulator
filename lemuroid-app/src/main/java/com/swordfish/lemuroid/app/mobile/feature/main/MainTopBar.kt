@@ -233,7 +233,7 @@ private fun LemuroidSearchView(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp, end = 8.dp),
+            .padding(top = 8.dp, bottom = 8.dp, end = 8.dp),
         shape = RoundedCornerShape(100),
         tonalElevation = 16.dp,
     ) {
