@@ -7,14 +7,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
@@ -83,7 +80,6 @@ fun MainTopBar(
 // ─────────────────────────────────────────────────────────────────────────────
 // TopAppBar styled to match HomeCollapsingHeader (collapsed state):
 //   • Same colorScheme.background surface (Surface above is transparent here)
-//   • Root routes  → logo circle  (same circle as HomeCollapsingHeader)
 //   • Sub-routes   → back arrow
 //   • Title        → titleLarge + FontWeight.Bold
 //   • Actions      → Info | CloudSync? | Settings?
@@ -109,32 +105,13 @@ fun LemuroidTopAppBar(
             actionIconContentColor = MaterialTheme.colorScheme.onBackground,
         ),
 
-        // ── Nav icon: logo circle for root routes, back arrow for sub-routes ──
+        // ── Nav icon: back arrow for sub-routes only ─────────────────────────
         navigationIcon = {
             if (route.parent != null) {
-                // Sub-route: back arrow
                 IconButton(onClick = { navController.popBackStack() }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
-                    )
-                }
-            } else {
-                // Root route: same filled circle as HomeCollapsingHeader
-                Surface(
-                    modifier = Modifier
-                        .padding(start = 16.dp)   // matches HomeCollapsingHeader
-                        .size(40.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.onBackground,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.VideogameAsset,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.background,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(9.dp),
                     )
                 }
             }

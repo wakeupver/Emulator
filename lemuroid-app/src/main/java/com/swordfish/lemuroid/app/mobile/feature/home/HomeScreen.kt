@@ -357,25 +357,6 @@ private fun HomeCollapsingHeader(
                 .fillMaxSize()
                 .padding(horizontal = 4.dp), // slight inset so IconButtons align nicely
         ) {
-            // ── Logo circle — always at top-left ────────────────────────────
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 16.dp, top = 8.dp)
-                    .size(40.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.onBackground,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.VideogameAsset,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.background,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(9.dp),
-                )
-            }
-
             // ── Action icons — always at top-right ───────────────────────────
             // Mirrors LemuroidTopBarActions: Info | CloudSync? | Settings
             Row(
@@ -427,14 +408,14 @@ private fun HomeCollapsingHeader(
                 )
             }
 
-            // ── Collapsed app name — next to logo, centred vertically ────────
+            // ── Collapsed app name — centred vertically ─────────────────────
             Text(
                 text = appName,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 68.dp) // 16 inset + 40 logo + 12 gap
+                    .padding(start = 20.dp)
                     .alpha(collapsedAlpha),
             )
         }
