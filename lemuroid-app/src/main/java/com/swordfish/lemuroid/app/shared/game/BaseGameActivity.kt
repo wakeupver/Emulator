@@ -37,6 +37,7 @@ import com.swordfish.lemuroid.lib.library.GameSystem
 import com.swordfish.lemuroid.lib.library.SystemCoreConfig
 import com.swordfish.lemuroid.lib.library.db.dao.PatchCodeDao
 import com.swordfish.lemuroid.lib.library.db.entity.Game
+import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
 import com.swordfish.lemuroid.app.cheats.PatchCodesManager
 import com.swordfish.lemuroid.lib.saves.SavesManager
 import com.swordfish.lemuroid.lib.saves.StatesManager
@@ -426,12 +427,20 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         ) {
             val gameActivity =
                 if (useLeanback) TVGameActivity::class.java else GameActivity::class.java
+
+            // Read the preference here in the calling (main) process before handing off to the
+            // :game process.  ImmersiveActivity then reads this extra directly from the Intent,
+            // avoiding cross-process SharedPreferences sync races on first launch.
+            val prefs = SharedPreferencesHelper.getSharedPreferences(activity)
+            val ignoreNotch = prefs.getBoolean("ignore_notch", true)
+
             activity.startActivityForResult(
                 Intent(activity, gameActivity).apply {
                     putExtra(EXTRA_GAME, game)
                     putExtra(EXTRA_LOAD_SAVE, loadSave)
                     putExtra(EXTRA_LEANBACK, useLeanback)
                     putExtra(EXTRA_SYSTEM_CORE_CONFIG, systemCoreConfig)
+                    putExtra(ImmersiveActivity.EXTRA_IGNORE_NOTCH, ignoreNotch)
                 },
                 REQUEST_PLAY_GAME,
             )
