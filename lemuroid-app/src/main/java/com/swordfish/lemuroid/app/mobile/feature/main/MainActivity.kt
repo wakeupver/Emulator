@@ -3,6 +3,7 @@ package com.swordfish.lemuroid.app.mobile.feature.main
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -26,6 +27,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fredporciuncula.flow.preferences.FlowSharedPreferences
 import com.swordfish.lemuroid.R
+import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
 import com.swordfish.lemuroid.app.shared.savesync.SaveSyncWork
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesScreen
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesViewModel
@@ -68,7 +70,6 @@ import com.swordfish.lemuroid.lib.library.MetaSystemID
 import com.swordfish.lemuroid.lib.library.SystemID
 import com.swordfish.lemuroid.lib.library.db.RetrogradeDatabase
 import com.swordfish.lemuroid.lib.library.db.entity.Game
-import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import com.swordfish.lemuroid.lib.storage.DirectoriesManager
 import dagger.Provides
@@ -118,6 +119,8 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
             SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+
+        applyIgnoreNotch()
 
         GlobalScope.safeLaunch {
             reviewManager.initialize(applicationContext)
@@ -397,6 +400,21 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
     override fun activity(): Activity = this
 
     override fun isBusy(): Boolean = mainViewModel.state.value.operationInProgress ?: false
+
+    private fun applyIgnoreNotch() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val prefs = SharedPreferencesHelper.getSharedPreferences(applicationContext)
+            val key = getString(R.string.pref_key_ignore_notch)
+            val ignoreNotch = prefs.getBoolean(key, true)
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = if (ignoreNotch) {
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                } else {
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER
+                }
+            }
+        }
+    }
 
     override fun onActivityResult(
         requestCode: Int,
