@@ -1,5 +1,6 @@
 package com.swordfish.lemuroid.app.mobile.feature.game
 
+import android.app.Activity
 import android.graphics.RectF
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +79,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.swordfish.lemuroid.app.shared.ImmersiveActivity
 import com.swordfish.lemuroid.app.shared.game.BaseGameScreenViewModel
 import com.swordfish.lemuroid.app.shared.game.macro.MacroButton
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelTouchControls.Companion.MENU_LOADING_ANIMATION_MILLIS
@@ -97,6 +99,12 @@ import kotlin.math.roundToInt
 
 @Composable
 fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
+    // Read the ignore-notch preference that was injected via Intent by BaseGameActivity.launchGame()
+    // in the main process.  Defaults to true (ignore notch / full-screen) when not set.
+    val activity = LocalContext.current as? Activity
+    val ignoreNotch = activity?.intent
+        ?.getBooleanExtra(ImmersiveActivity.EXTRA_IGNORE_NOTCH, true) ?: true
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isLandscape = constraints.maxWidth > constraints.maxHeight
 
@@ -191,7 +199,14 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
                     modifier =
                         Modifier
                             .layoutId(GameScreenLayout.CONSTRAINTS_GAME_VIEW)
-                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top))
+                            .then(
+                                // When ignoreNotch=true  → no padding, game renders behind notch.
+                                // When ignoreNotch=false → apply cutout insets on ALL sides so the
+                                // viewport avoids the notch in both portrait (top) and landscape
+                                // (left/right) orientations.
+                                if (ignoreNotch) Modifier
+                                else Modifier.windowInsetsPadding(WindowInsets.displayCutout)
+                            )
                             .onGloballyPositioned { viewportPosition.value = it.boundsInRoot() },
                 )
 
