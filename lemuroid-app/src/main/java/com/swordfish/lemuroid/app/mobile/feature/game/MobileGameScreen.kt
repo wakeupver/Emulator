@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
@@ -201,12 +200,12 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
                         Modifier
                             .layoutId(GameScreenLayout.CONSTRAINTS_GAME_VIEW)
                             .then(
-                                // When ignoreNotch=true  → no padding, game renders behind notch.
-                                // When ignoreNotch=false → safeDrawing = union(displayCutout,
-                                // systemBars) covers notch (left in landscape) + status bar
-                                // (top) + nav bar (bottom) in one call.
+                                // ignoreNotch=true  → no padding, game renders behind notch.
+                                // ignoreNotch=false → only display cutout insets (notch physical
+                                // boundary only). No systemBars: those include status/nav bar
+                                // heights which create unwanted thin strips at top and bottom.
                                 if (ignoreNotch) Modifier
-                                else Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+                                else Modifier.windowInsetsPadding(WindowInsets.displayCutout)
                             )
                             .onGloballyPositioned { viewportPosition.value = it.boundsInRoot() },
                 )
