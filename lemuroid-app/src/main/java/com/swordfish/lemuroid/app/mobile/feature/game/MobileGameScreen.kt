@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
@@ -122,7 +121,15 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
         val touchControlsVisibleState = viewModel.isTouchControllerVisible().collectAsState(false)
         val touchControllerSettingsState =
             viewModel
-                .getTouchControlsSettings(LocalDensity.current, WindowInsets.displayCutout)
+                .getTouchControlsSettings(
+                    LocalDensity.current,
+                    // When ignoreNotch=false, restrict to horizontal-only so that any
+                    // device-reported top/bottom cutout values (status-bar-height etc.) are
+                    // zeroed out before reaching computeInsetsPaddings(). This prevents
+                    // thin strips appearing at the top and bottom of the game viewport.
+                    if (ignoreNotch) WindowInsets.displayCutout
+                    else WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal),
+                )
                 .collectAsState(null)
 
         val touchControllerSettings = touchControllerSettingsState.value
@@ -199,16 +206,6 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
                     modifier =
                         Modifier
                             .layoutId(GameScreenLayout.CONSTRAINTS_GAME_VIEW)
-                            .then(
-                                // ignoreNotch=true  → no padding, game renders behind notch.
-                                // ignoreNotch=false → left/right displayCutout only.
-                                // .only(Horizontal) explicitly zeroes top & bottom so device-
-                                // specific cutout reporting on those edges causes no strips.
-                                if (ignoreNotch) Modifier
-                                else Modifier.windowInsetsPadding(
-                                    WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                                )
-                            )
                             .onGloballyPositioned { viewportPosition.value = it.boundsInRoot() },
                 )
 
