@@ -201,11 +201,13 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
                             .layoutId(GameScreenLayout.CONSTRAINTS_GAME_VIEW)
                             .then(
                                 // ignoreNotch=true  → no padding, game renders behind notch.
-                                // ignoreNotch=false → only display cutout insets (notch physical
-                                // boundary only). No systemBars: those include status/nav bar
-                                // heights which create unwanted thin strips at top and bottom.
+                                // ignoreNotch=false → left/right displayCutout only.
+                                // .only(Horizontal) explicitly zeroes top & bottom so device-
+                                // specific cutout reporting on those edges causes no strips.
                                 if (ignoreNotch) Modifier
-                                else Modifier.windowInsetsPadding(WindowInsets.displayCutout)
+                                else Modifier.windowInsetsPadding(
+                                    WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
+                                )
                             )
                             .onGloballyPositioned { viewportPosition.value = it.boundsInRoot() },
                 )
