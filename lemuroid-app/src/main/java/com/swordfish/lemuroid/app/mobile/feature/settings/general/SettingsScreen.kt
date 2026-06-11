@@ -1,11 +1,8 @@
 package com.swordfish.lemuroid.app.mobile.feature.settings.general
 
-import android.app.Activity
-import android.os.Build
 import android.net.Uri
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -140,23 +137,6 @@ private fun InputSettings(navController: NavController) {
 private fun GeneralSettings() {
     val hdMode = booleanPreferenceState(R.string.pref_key_hd_mode, false)
     val immersiveMode = booleanPreferenceState(R.string.pref_key_enable_immersive_mode, false)
-    val ignoreNotch = booleanPreferenceState(R.string.pref_key_ignore_notch, true)
-
-    // Apply display cutout mode immediately whenever the toggle changes
-    val activity = LocalContext.current as? Activity
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        SideEffect {
-            activity?.window?.let { win ->
-                win.attributes = win.attributes.apply {
-                    layoutInDisplayCutoutMode = if (ignoreNotch.value) {
-                        android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                    } else {
-                        android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER
-                    }
-                }
-            }
-        }
-    }
 
     LemuroidCardSettingsGroup(
         title = { Text(text = stringResource(id = R.string.settings_category_general)) },
@@ -209,11 +189,6 @@ private fun GeneralSettings() {
             title = { Text(text = stringResource(id = R.string.settings_title_aspect_ratio)) },
             subtitle = { Text(text = stringResource(id = R.string.settings_description_aspect_ratio)) },
             items = stringListResource(R.array.pref_key_aspect_ratio_display_names),
-        )
-        LemuroidSettingsSwitch(
-            state = ignoreNotch,
-            title = { Text(text = stringResource(id = R.string.settings_title_ignore_notch)) },
-            subtitle = { Text(text = stringResource(id = R.string.settings_description_ignore_notch)) },
         )
     }
 }

@@ -19,9 +19,4 @@ abstract class ImmersiveActivity : RetrogradeActivity() {
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
         )
     }
-
-    companion object {
-        /** Intent extra key used to pass the ignore-notch preference across processes. */
-        const val EXTRA_IGNORE_NOTCH = "EXTRA_IGNORE_NOTCH"
-    }
 }

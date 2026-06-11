@@ -48,8 +48,6 @@ class SettingsManager(private val context: Context, sharedPreferences: Lazy<Shar
 
     suspend fun enableImmersiveMode() = booleanPreference(R.string.pref_key_enable_immersive_mode, false)
 
-    suspend fun ignoreNotch() = booleanPreference(R.string.pref_key_ignore_notch, true)
-
     suspend fun cacheSizeBytes() =
         stringPreference(
             R.string.pref_key_max_cache_size,
